@@ -21,7 +21,7 @@ import { PricingCard, type PricingPlan } from "@/components/home/pricing";
 import { Reveal } from "@/components/reveal";
 import { getSettings } from "@/lib/settings";
 import { getPublishedCourses, getTestimonials, getUserCourses } from "@/lib/data";
-import { ensureDefaultTestimonials } from "@/lib/default-testimonials";
+import { DEFAULT_TESTIMONIALS, ensureDefaultTestimonials } from "@/lib/default-testimonials";
 import { getCurrentUser } from "@/lib/auth";
 import { cn, formatNumber } from "@/lib/utils";
 import { TestimonialsMarquee } from "@/components/home/testimonials-marquee";
@@ -80,11 +80,28 @@ function SectionHeading({ eyebrow, title, highlight, subtitle, align = "center" 
 export default async function HomePage() {
   const [s, user] = await Promise.all([getSettings(), getCurrentUser()]);
   await ensureDefaultTestimonials();
-  const [featured, mine, reviews] = await Promise.all([
+  const [featured, mine, reviewsFromDb] = await Promise.all([
     getPublishedCourses({ limit: 10 }),
     user ? getUserCourses(user.id) : Promise.resolve([]),
-    getTestimonials(9),
+    getTestimonials(9).catch(() => []),
   ]);
+  // قسم آراء الطلاب لازم يفضل ظاهر دايمًا: لو الجدول فاضي أو الداتابيز مش متوصلة
+  // نعرض نسخة افتراضية بنفس الصور (وكلها قابلة للتعديل من لوحة التحكم → آراء الطلاب).
+  const reviews =
+    reviewsFromDb.length > 0
+      ? reviewsFromDb
+      : DEFAULT_TESTIMONIALS.map((t, i) => ({
+          id: `default-testimonial-${i + 1}`,
+          name: t.name,
+          grade: t.grade,
+          role: t.role,
+          text: t.text,
+          stars: t.stars,
+          avatarUrl: t.avatarUrl,
+          isPublished: true,
+          orderIndex: t.orderIndex,
+          createdAt: new Date(),
+        }));
   const enrolledIds = new Set(mine.map((c) => c.id));
   const courses = featured.map((c) => {
     const m = mine.find((x) => x.id === c.id);
