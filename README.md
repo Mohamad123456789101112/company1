@@ -74,9 +74,9 @@
 3. **Deploy**.
 
 ### 3) Google Login
-1. [Google Cloud Console](https://console.cloud.google.com) → **APIs & Services → Credentials → Create OAuth client ID** (Web application).
-2. أضف في **Authorized redirect URIs**: `https://your-domain.vercel.app/api/auth/google/callback`
-3. ضع Client ID / Secret في متغيرات Vercel وأعد النشر.
+1. في [Google Cloud Console](https://console.cloud.google.com)، أنشئ OAuth Client من نوع **Web application** وأكمل شاشة الموافقة.
+2. أضف callback مطابقًا للدومين المستخدم، مثل `https://mrmohamedfawzi.vercel.app/api/auth/google/callback`.
+3. خزّن `GOOGLE_CLIENT_ID` و`GOOGLE_CLIENT_SECRET` كمتغيرين سريين في Vercel (Production وPreview)، ثم أعد النشر. لا تستخدم `NEXT_PUBLIC_` ولا تشارك الـsecret.
 
 > حساب المدير الافتراضي من ملف SQL: `admin@mohamedfawzi.com` / `Admin@12345` — **غيّر كلمة المرور فور أول دخول** (سيُطلب منك ذلك).
 

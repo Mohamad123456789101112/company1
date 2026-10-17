@@ -21,18 +21,40 @@ function PasswordInput(props: { name: string; placeholder?: string; autoComplete
   );
 }
 
-export function GoogleButton({ enabled, next }: { enabled: boolean; next?: string }) {
+export function GoogleButton({
+  enabled,
+  next,
+  label = "Continue with Google",
+}: {
+  enabled: boolean;
+  next?: string;
+  label?: string;
+}) {
   const href = `/api/auth/google${next ? `?next=${encodeURIComponent(next)}` : ""}`;
+  const buttonClass = "relative flex h-10 w-full items-center justify-center rounded-[4px] border border-[#747775] bg-white px-3 font-[Arial,sans-serif] text-sm font-medium tracking-[0.25px] text-[#1f1f1f] transition-colors hover:bg-[#f8f9fa] active:bg-[#f1f3f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4285f4] focus-visible:ring-offset-2";
+  const contents = (
+    <>
+      <GoogleIcon className="absolute left-3 size-[18px]" aria-hidden="true" />
+      <span dir="ltr">{label}</span>
+    </>
+  );
+
   if (!enabled) {
     return (
-      <div className="btn w-full cursor-not-allowed border-lav-300 bg-white py-3 text-slate-500 opacity-70" title="أضف GOOGLE_CLIENT_ID و GOOGLE_CLIENT_SECRET في متغيرات البيئة لتفعيل الدخول عبر Google">
-        <GoogleIcon className="size-5" /> الدخول عبر Google (غير مفعّل بعد)
+      <div>
+        <button type="button" className={`${buttonClass} cursor-not-allowed opacity-60`} disabled title="يلزم إعداد بيانات OAuth الخاصة بـ Google أولًا">
+          {contents}
+        </button>
+        <p className="mt-2 text-center text-xs leading-5 text-slate-500">
+          تسجيل Google يحتاج إعداد OAuth Client في Google Cloud.
+        </p>
       </div>
     );
   }
+
   return (
-    <a href={href} className="btn w-full border-lav-300 bg-white py-3 text-slate-800 shadow-sm hover:border-brand-400 hover:bg-brand-50/40 hover:text-slate-900 active:scale-[0.99]">
-      <GoogleIcon className="size-5" /> المتابعة بحساب Google
+    <a href={href} dir="ltr" className={buttonClass} aria-label={label}>
+      {contents}
     </a>
   );
 }
@@ -62,7 +84,7 @@ export function LoginForm({ next, googleEnabled, notice }: { next?: string; goog
         <SubmitButton className="btn btn-primary w-full py-3" pendingText="جارٍ التحقق...">تسجيل الدخول</SubmitButton>
       </form>
       <Divider label="أو تابع باستخدام" />
-      <GoogleButton enabled={googleEnabled} next={next} />
+      <GoogleButton enabled={googleEnabled} next={next} label="Sign in with Google" />
       <p className="mt-6 text-center text-sm text-slate-500">
         ليس لديك حساب؟ <Link href="/register" className="font-bold text-brand-600 hover:underline">أنشئ حسابًا الآن</Link>
       </p>
@@ -131,7 +153,7 @@ export function RegisterForm({ googleEnabled }: { googleEnabled: boolean }) {
         <SubmitButton className="btn btn-primary w-full py-3" pendingText="جارٍ إنشاء الحساب...">إنشاء الحساب</SubmitButton>
       </form>
       <Divider label="أو سجّل باستخدام" />
-      <GoogleButton enabled={googleEnabled} />
+      <GoogleButton enabled={googleEnabled} label="Sign up with Google" />
       <p className="mt-6 text-center text-sm text-slate-500">
         لديك حساب بالفعل؟ <Link href="/login" className="font-bold text-brand-600 hover:underline">سجّل الدخول</Link>
       </p>

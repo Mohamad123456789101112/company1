@@ -43,10 +43,13 @@ npm run db:check               # يتأكد من الاتصال
 
 ## 3) تسجيل الدخول عبر Google
 
-1. [Google Cloud Console](https://console.cloud.google.com) → **APIs & Services → Credentials → Create OAuth client ID** (Web application).
-2. **Authorized redirect URIs**:
-   `https://your-domain.vercel.app/api/auth/google/callback`
-3. ضع Client ID / Secret في Vercel ثم أعد النشر.
+1. في [Google Cloud Console](https://console.cloud.google.com)، أكمل إعداد **OAuth consent screen**، ثم أنشئ **OAuth Client ID → Web application**.
+2. أضف عنوان callback مطابقًا تمامًا للدومين المستخدم. الدومين الأساسي الحالي:
+   `https://mrmohamedfawzi.vercel.app/api/auth/google/callback`
+   وللاختبار على معاينة الفرع أضف أيضًا:
+   `https://company1-git-arena-35d5a4-860d2b-mohamadsalahkamal683s-projects.vercel.app/api/auth/google/callback`
+3. أضف `GOOGLE_CLIENT_ID` و`GOOGLE_CLIENT_SECRET` في Vercel كمتغيرين سريين لبيئتي **Production** و**Preview**، أو في `.env.local` محليًا. لا تضف بادئة `NEXT_PUBLIC_` ولا ترسل الـsecret في المحادثة.
+4. إذا كانت شاشة الموافقة في وضع **Testing**، أضف بريد Google الذي سيختبر الدخول ضمن **Test users**، ثم أعد نشر Vercel.
 
 ## 4) أين يعيش كل شيء؟
 

@@ -23,13 +23,13 @@ import "server-only";
 /** Google Auth (OAuth 2.0 + PKCE). */
 export const secureGoogleAuth = {
   get clientId(): string {
-    return process.env.GOOGLE_CLIENT_ID ?? "";
+    return process.env.GOOGLE_CLIENT_ID?.trim() ?? "";
   },
   get clientSecret(): string {
-    return process.env.GOOGLE_CLIENT_SECRET ?? "";
+    return process.env.GOOGLE_CLIENT_SECRET?.trim() ?? "";
   },
   get configured(): boolean {
-    return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+    return Boolean(process.env.GOOGLE_CLIENT_ID?.trim() && process.env.GOOGLE_CLIENT_SECRET?.trim());
   },
 } as const;
 
