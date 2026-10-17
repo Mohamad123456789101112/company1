@@ -38,6 +38,26 @@ export type ActionState = {
 
 const GENERIC_LOGIN_ERROR = "البريد الإلكتروني أو كلمة المرور غير صحيحة";
 
+function databaseErrorCode(error: unknown): string | undefined {
+  let current: unknown = error;
+  for (let depth = 0; depth < 3; depth += 1) {
+    if (!current || typeof current !== "object") return undefined;
+    const shaped = current as { code?: unknown; cause?: unknown };
+    if (typeof shaped.code === "string") return shaped.code;
+    current = shaped.cause;
+  }
+  return undefined;
+}
+
+function logAuthFailure(flow: "login" | "register", error: unknown) {
+  const name = error instanceof Error ? error.name : "UnknownError";
+  console.error(`[auth:${flow}] operation failed`, { name, code: databaseErrorCode(error) });
+}
+
+function isUniqueViolation(error: unknown) {
+  return databaseErrorCode(error) === "23505";
+}
+
 /* ───────────────────────── Login ───────────────────────── */
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -49,72 +69,81 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   if (!parsed.success) return { error: "أدخل البريد الإلكتروني وكلمة المرور بشكل صحيح" };
 
   const { email, password } = parsed.data;
-  const ip = await getClientIp();
+  let destination = "/dashboard";
 
-  // Layer 1: per-IP throttle (slows down distributed guessing from one source)
-  const ipLimit = await rateLimit({ key: `login:ip:${ip}`, limit: 20, windowSec: 900, blockSec: 900 });
-  if (!ipLimit.ok) {
-    return { error: `محاولات دخول كثيرة جدًا من هذا الجهاز. حاول مرة أخرى بعد ${humanRetry(ipLimit.retryAfterSec)}.` };
-  }
-  // Layer 2: per-account throttle (stops brute force on a single account)
-  const idLimit = await rateLimit({ key: `login:id:${email}`, limit: 5, windowSec: 900, blockSec: 900 });
-  if (!idLimit.ok) {
-    await audit("login.rate_limited", { meta: { email } });
-    return { error: `تم تجاوز عدد المحاولات المسموح بها لهذا الحساب. حاول بعد ${humanRetry(idLimit.retryAfterSec)}.` };
-  }
+  try {
+    const ip = await getClientIp();
 
-  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    // Layer 1: per-IP throttle (slows down distributed guessing from one source)
+    const ipLimit = await rateLimit({ key: `login:ip:${ip}`, limit: 20, windowSec: 900, blockSec: 900 });
+    if (!ipLimit.ok) {
+      return { error: `محاولات دخول كثيرة جدًا من هذا الجهاز. حاول مرة أخرى بعد ${humanRetry(ipLimit.retryAfterSec)}.` };
+    }
+    // Layer 2: per-account throttle (stops brute force on a single account)
+    const idLimit = await rateLimit({ key: `login:id:${email}`, limit: 5, windowSec: 900, blockSec: 900 });
+    if (!idLimit.ok) {
+      await audit("login.rate_limited", { meta: { email } });
+      return { error: `تم تجاوز عدد المحاولات المسموح بها لهذا الحساب. حاول بعد ${humanRetry(idLimit.retryAfterSec)}.` };
+    }
 
-  if (!user || !user.passwordHash) {
-    await burnPasswordTiming(password); // keep response time constant
-    return { error: GENERIC_LOGIN_ERROR };
-  }
+    const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
 
-  // Layer 3: account lockout after repeated failures
-  if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
-    const mins = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60_000);
-    return { error: `تم قفل الحساب مؤقتًا بسبب محاولات فاشلة متكررة. حاول بعد ${mins} دقيقة.` };
-  }
+    if (!user || !user.passwordHash) {
+      await burnPasswordTiming(password); // keep response time constant
+      return { error: GENERIC_LOGIN_ERROR };
+    }
 
-  const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) {
-    const attempts = user.failedLoginAttempts + 1;
-    const lockMinutes = attempts >= 10 ? 60 : attempts >= 5 ? 15 : 0;
+    // Layer 3: account lockout after repeated failures
+    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+      const mins = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60_000);
+      return { error: `تم قفل الحساب مؤقتًا بسبب محاولات فاشلة متكررة. حاول بعد ${mins} دقيقة.` };
+    }
+
+    const valid = await verifyPassword(password, user.passwordHash);
+    if (!valid) {
+      const attempts = user.failedLoginAttempts + 1;
+      const lockMinutes = attempts >= 10 ? 60 : attempts >= 5 ? 15 : 0;
+      await db
+        .update(users)
+        .set({
+          failedLoginAttempts: attempts,
+          lockedUntil: lockMinutes ? new Date(Date.now() + lockMinutes * 60_000) : null,
+        })
+        .where(eq(users.id, user.id));
+      await audit("login.failed", { userId: user.id, meta: { attempts } });
+      return { error: GENERIC_LOGIN_ERROR };
+    }
+
+    if (user.isBanned) return { error: "تم حظر هذا الحساب. تواصل مع الدعم الفني." };
+    if (!user.isActive) return { error: "هذا الحساب موقوف مؤقتًا. تواصل مع الدعم الفني." };
+
+    const settings = await getSettings();
+    const promote = isBootstrapAdminEmail(email) && user.role !== "admin";
+
     await db
       .update(users)
       .set({
-        failedLoginAttempts: attempts,
-        lockedUntil: lockMinutes ? new Date(Date.now() + lockMinutes * 60_000) : null,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        lastLoginAt: new Date(),
+        lastLoginIp: ip,
+        updatedAt: new Date(),
+        ...(promote ? { role: "admin" as const } : {}),
       })
       .where(eq(users.id, user.id));
-    await audit("login.failed", { userId: user.id, meta: { attempts } });
-    return { error: GENERIC_LOGIN_ERROR };
+
+    await clearRateLimit(`login:id:${email}`);
+    await createSession(user.id, Number(settings.max_devices) || 2);
+    await audit("login.success", { userId: user.id });
+
+    const staff = promote || user.role === "admin" || user.role === "assistant";
+    destination = safeRedirectPath(parsed.data.next, staff ? "/admin" : "/dashboard");
+  } catch (error) {
+    logAuthFailure("login", error);
+    return { error: "تعذر إتمام تسجيل الدخول حاليًا. حاول مرة أخرى بعد قليل." };
   }
 
-  if (user.isBanned) return { error: "تم حظر هذا الحساب. تواصل مع الدعم الفني." };
-  if (!user.isActive) return { error: "هذا الحساب موقوف مؤقتًا. تواصل مع الدعم الفني." };
-
-  const settings = await getSettings();
-  const promote = isBootstrapAdminEmail(email) && user.role !== "admin";
-
-  await db
-    .update(users)
-    .set({
-      failedLoginAttempts: 0,
-      lockedUntil: null,
-      lastLoginAt: new Date(),
-      lastLoginIp: ip,
-      updatedAt: new Date(),
-      ...(promote ? { role: "admin" as const } : {}),
-    })
-    .where(eq(users.id, user.id));
-
-  await clearRateLimit(`login:id:${email}`);
-  await createSession(user.id, Number(settings.max_devices) || 2);
-  await audit("login.success", { userId: user.id });
-
-  const staff = promote || user.role === "admin" || user.role === "assistant";
-  redirect(safeRedirectPath(parsed.data.next, staff ? "/admin" : "/dashboard"));
+  redirect(destination);
 }
 
 /* ───────────────────────── Register ───────────────────────── */
@@ -144,54 +173,71 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
     return { error: "حدث خطأ غير متوقع. حاول مرة أخرى لاحقًا." };
   }
 
-  const ip = await getClientIp();
-  const rl = await rateLimit({ key: `register:ip:${ip}`, limit: 5, windowSec: 3600, blockSec: 3600 });
-  if (!rl.ok) {
-    return { error: `تم إنشاء حسابات كثيرة من هذا الجهاز. حاول بعد ${humanRetry(rl.retryAfterSec)}.` };
-  }
-
   const { name, email, phone, parentPhone, grade, governorate, password } = parsed.data;
+  let destination = "/dashboard?welcome=1";
+  let userCreated = false;
 
-  const existing = await db
-    .select({ email: users.email, phone: users.phone })
-    .from(users)
-    .where(or(eq(users.email, email), eq(users.phone, phone)))
-    .limit(1);
-  if (existing[0]) {
-    const errors: Record<string, string> = {};
-    if (existing[0].email === email) errors.email = "هذا البريد مسجل بالفعل";
-    if (existing[0].phone === phone) errors.phone = "رقم الهاتف مسجل بالفعل";
-    return { error: "البريد الإلكتروني أو رقم الهاتف مسجل بالفعل", errors };
-  }
-
-  const passwordHash = await hashPassword(password);
-  const role = isBootstrapAdminEmail(email) ? "admin" : "student";
-
-  let userId: string;
   try {
-    const [created] = await db
-      .insert(users)
-      .values({
-        name,
-        email,
-        phone,
-        parentPhone,
-        grade,
-        governorate: governorate || null,
-        passwordHash,
-        role,
-        lastLoginAt: new Date(),
-        lastLoginIp: ip,
-      })
-      .returning({ id: users.id });
-    userId = created.id;
-  } catch {
-    return { error: "البريد الإلكتروني أو رقم الهاتف مسجل بالفعل" };
+    const ip = await getClientIp();
+    const rl = await rateLimit({ key: `register:ip:${ip}`, limit: 5, windowSec: 3600, blockSec: 3600 });
+    if (!rl.ok) {
+      return { error: `تم إنشاء حسابات كثيرة من هذا الجهاز. حاول بعد ${humanRetry(rl.retryAfterSec)}.` };
+    }
+
+    const existing = await db
+      .select({ email: users.email, phone: users.phone })
+      .from(users)
+      .where(or(eq(users.email, email), eq(users.phone, phone)))
+      .limit(1);
+    if (existing[0]) {
+      const errors: Record<string, string> = {};
+      if (existing[0].email === email) errors.email = "هذا البريد مسجل بالفعل";
+      if (existing[0].phone === phone) errors.phone = "رقم الهاتف مسجل بالفعل";
+      return { error: "البريد الإلكتروني أو رقم الهاتف مسجل بالفعل", errors };
+    }
+
+    const passwordHash = await hashPassword(password);
+    const role = isBootstrapAdminEmail(email) ? "admin" : "student";
+
+    let created: { id: string } | undefined;
+    try {
+      [created] = await db
+        .insert(users)
+        .values({
+          name,
+          email,
+          phone,
+          parentPhone,
+          grade,
+          governorate: governorate || null,
+          passwordHash,
+          role,
+          lastLoginAt: new Date(),
+          lastLoginIp: ip,
+        })
+        .returning({ id: users.id });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        return { error: "البريد الإلكتروني أو رقم الهاتف مسجل بالفعل" };
+      }
+      throw error;
+    }
+
+    if (!created) throw new Error("Registration insert returned no user id");
+    userCreated = true;
+    await audit("user.registered", { userId: created.id, meta: { grade } });
+    await createSession(created.id, Number(settings.max_devices) || 2);
+    if (role === "admin") destination = "/admin";
+  } catch (error) {
+    logAuthFailure("register", error);
+    return {
+      error: userCreated
+        ? "تم إنشاء الحساب، لكن تعذر تسجيل الدخول تلقائيًا. جرّب تسجيل الدخول الآن."
+        : "تعذر إنشاء الحساب حاليًا. حاول مرة أخرى بعد قليل.",
+    };
   }
 
-  await audit("user.registered", { userId, meta: { grade } });
-  await createSession(userId, Number(settings.max_devices) || 2);
-  redirect(role === "admin" ? "/admin" : "/dashboard?welcome=1");
+  redirect(destination);
 }
 
 /* ───────────────────────── Logout ───────────────────────── */

@@ -28,13 +28,14 @@ npm run db:check               # يتأكد من الاتصال
 
 1. ارفع المشروع على GitHub ثم **vercel.com → New Project** واستورده.
 2. أضف متغيرات البيئة:
-   `DATABASE_URL`, `NEXT_PUBLIC_APP_URL`, `ADMIN_EMAILS`,
-   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MEDIA_SIGNING_SECRET`.
+   `DATABASE_URL` (أو فعّل تكامل Supabase في Vercel ليضيف `POSTGRES_URL` تلقائيًا),
+   `NEXT_PUBLIC_APP_URL`, `ADMIN_EMAILS`, `GOOGLE_CLIENT_ID`,
+   `GOOGLE_CLIENT_SECRET`, `MEDIA_SIGNING_SECRET`.
 3. اضغط **Deploy**.
 
-> ⚠️ إذا لم تضبط `DATABASE_URL` يعمل الموقع في **وضع تجربة مؤقت (PGlite)**
-> بالبيانات الافتراضية للعرض فقط — البيانات تُفقد مع كل إعادة تشغيل.
-> للإنتاج الحقيقي يجب ضبط `DATABASE_URL`.
+> ⚠️ PGlite للتجربة المحلية فقط. على Vercel يلزم اتصال PostgreSQL دائم عبر
+> `DATABASE_URL` أو `POSTGRES_URL`؛ إذا غاب الاثنان يوقف التطبيق البناء بدلًا من
+> تشغيل قاعدة مؤقتة تفقد الحسابات والجلسات بين استدعاءات الخادم.
 
 ## 3) تسجيل الدخول عبر Google
 
@@ -56,7 +57,7 @@ npm run db:check               # يتأكد من الاتصال
 
 ## 5) التحقق السريع بعد النشر
 
-- `/api/health` يجب أن يعيد `{"ok":true}`.
+- `/api/health` يجب أن يعيد `{"ok":true,"database":"postgres","schema":"ready"}`؛ إذا ظهرت `503` فافحص اتصال PostgreSQL أو وجود الجداول الأساسية.
 - جرّب تسجيل الدخول بحساب المدير وغيّر كلمة المرور.
 - من **الإدارة → صور الموقع** ارفع صور المدرس الحقيقية.
 - من **الإدارة → الكورسات** تأكد من ظهور الفصول والدروس وجرّب السحب والإسقاط.

@@ -11,6 +11,17 @@ export type Db = NodePgDatabase<typeof schema>;
 // Vercel's Supabase integration exposes POSTGRES_URL; self-hosted/local setups may use DATABASE_URL.
 const databaseUrl = process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim();
 
+// Vercel functions are ephemeral: an in-memory PGlite database loses users and
+// sessions between invocations, which breaks registration and dashboard auth.
+// Fail the build/runtime clearly instead of silently shipping a non-persistent DB.
+if (process.env.VERCEL && !databaseUrl) {
+  throw new Error(
+    "Missing persistent database configuration: set DATABASE_URL or connect the Supabase integration so POSTGRES_URL is available. PGlite is local-demo only.",
+  );
+}
+
+export const databaseMode = databaseUrl ? "postgres" : "pglite";
+
 const globalForDb = globalThis as typeof globalThis & {
   __arenaNextJsPostgresqlPool?: Pool;
   __arenaPglite?: { client: PGlite; db: Db; ready: Promise<void> };
@@ -51,9 +62,8 @@ function createDb(): { db: Db; ready: Promise<void>; pool?: Pool } {
     return { db: drizzlePg(pool, { schema }), ready: Promise.resolve(), pool };
   }
 
-  /* ── Demo / preview mode: embedded Postgres (PGlite) – no external DB needed ──
-     Set DATABASE_URL or POSTGRES_URL in .env / Vercel to switch to the real
-     database. Vercel's Supabase integration provides POSTGRES_URL.            */
+  /* ── Local demo mode only: embedded Postgres (PGlite) ──
+     Vercel is rejected above when no persistent Postgres URL is configured. */
   if (!globalForDb.__arenaPglite) {
     const client = new PGlite();
     const db = drizzlePglite(client, { schema }) as unknown as Db;
@@ -75,6 +85,6 @@ function createDb(): { db: Db; ready: Promise<void>; pool?: Pool } {
 const { db: _db, ready: _dbReady, pool: _pool } = createDb();
 
 export const db = _db;
-/** Resolves once the embedded demo database has finished bootstrapping (no-op with a configured Postgres URL). */
+/** Resolves once the local embedded demo database has bootstrapped (no-op with Postgres). */
 export const dbReady = _dbReady;
 export const pool = _pool;
