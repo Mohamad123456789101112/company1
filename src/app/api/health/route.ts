@@ -39,6 +39,10 @@ function errorDetails(error: unknown): ErrorDetails {
 }
 
 function safeIssue({ code, message, name }: ErrorDetails) {
+  if (
+    code &&
+    /^(SELF_SIGNED_CERT_IN_CHAIN|DEPTH_ZERO_SELF_SIGNED_CERT|UNABLE_TO_VERIFY_LEAF_SIGNATURE|ERR_TLS_CERT_ALTNAME_INVALID|CERT_HAS_EXPIRED)$/.test(code)
+  ) return "tls";
   if (code === "28P01" || code === "28000") return "credentials";
   if (code === "3D000") return "database";
   if (code === "42P01" || code === "42703") return "schema";

@@ -11,6 +11,34 @@ export type Db = NodePgDatabase<typeof schema>;
 // Vercel's Supabase integration exposes POSTGRES_URL; self-hosted/local setups may use DATABASE_URL.
 const databaseUrl = process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim();
 
+/**
+ * pg parses SSL query parameters in connectionString after merging Pool options.
+ * On current pg versions, sslmode=require becomes strict certificate validation,
+ * which overrides our explicit SSL policy and rejects Supabase's self-signed chain.
+ * The connection's TLS policy is set below, so remove URL-level SSL options first.
+ */
+function withoutUrlSslOptions(connectionString: string): string {
+  try {
+    const url = new URL(connectionString);
+    const sslParameters = new Set([
+      "ssl",
+      "sslmode",
+      "sslcert",
+      "sslkey",
+      "sslrootcert",
+      "sslnegotiation",
+      "uselibpqcompat",
+    ]);
+    for (const key of [...url.searchParams.keys()]) {
+      if (sslParameters.has(key.toLowerCase())) url.searchParams.delete(key);
+    }
+    return url.toString();
+  } catch {
+    // Let pg report malformed/non-URL connection strings through the normal path.
+    return connectionString;
+  }
+}
+
 // Vercel functions are ephemeral: an in-memory PGlite database loses users and
 // sessions between invocations, which breaks registration and dashboard auth.
 // Fail the build/runtime clearly instead of silently shipping a non-persistent DB.
@@ -32,15 +60,19 @@ const isLocal =
   (databaseUrl.includes("127.0.0.1") || databaseUrl.includes("localhost"));
 
 /**
- * Supabase / managed Postgres requires TLS. Local Postgres does not.
- * You can force the behaviour with DATABASE_SSL=true|false.
+ * Managed Postgres uses TLS. Without a CA, retain the existing provider-compatible
+ * encrypted connection behavior; setting DATABASE_SSL_CA enables certificate
+ * chain validation. DATABASE_SSL=true|false can force TLS on/off.
  */
+const sslCa = process.env.DATABASE_SSL_CA?.replace(/\\n/g, "\n").trim();
 const sslSetting =
   process.env.DATABASE_SSL === "false"
-    ? undefined
+    ? false
     : process.env.DATABASE_SSL === "true" || !isLocal
-      ? { rejectUnauthorized: false }
-      : undefined;
+      ? sslCa
+        ? { ca: sslCa, rejectUnauthorized: true }
+        : { rejectUnauthorized: false }
+      : false;
 
 function createDb(): { db: Db; ready: Promise<void>; pool?: Pool } {
   /* ── Production / real database: Supabase or any Postgres ── */
@@ -48,7 +80,7 @@ function createDb(): { db: Db; ready: Promise<void>; pool?: Pool } {
     const pool =
       globalForDb.__arenaNextJsPostgresqlPool ??
       new Pool({
-        connectionString: databaseUrl,
+        connectionString: withoutUrlSslOptions(databaseUrl),
         ssl: sslSetting,
         // Serverless friendly limits (Vercel + Supabase pooler)
         max: Number(process.env.DATABASE_POOL_MAX ?? 5),
