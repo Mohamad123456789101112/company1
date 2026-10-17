@@ -4,12 +4,24 @@ import type { NextRequest } from "next/server";
 const SESSION_COOKIE = "aj_session";
 
 /**
+ * 🔒 Defence in depth: secrets, SQL and helper scripts are never web-reachable.
+ * (SQL, env and config sources live outside the app router; these paths would
+ * 404 anyway — blocking them at the edge keeps scanners away.)
+ */
+const BLOCKED = /^\/(?:\.env(?:\..*)?|config(?:\/.*)?|supabase(?:\/.*)?|scripts(?:\/.*)?|\.git(?:\/.*)?)$/i;
+
+/**
  * First line of defence: unauthenticated visitors are bounced away from
  * private areas before rendering. Real authorization (role checks, ownership)
  * happens again in layouts, pages, and server actions – never trust this alone.
  */
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+
+  if (BLOCKED.test(pathname)) {
+    return new NextResponse("Not Found", { status: 404 });
+  }
+
   const hasSession = Boolean(request.cookies.get(SESSION_COOKIE)?.value);
 
   if (!hasSession) {

@@ -8,13 +8,13 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 /**
  * Half-page auth layout: emerald picture panel (teacher cut-out) + clean white form panel.
+ * The whole block (form box + side picture) is sized to 90% of the screen width.
  */
 export async function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   const s = await getSettings();
   const [first, ...rest] = title.split(" ");
   return (
-    // .auth-shell → the whole login board (image + form) is 90% of the screen
-    <div className="auth-shell relative z-10 flex min-h-screen flex-col gap-4 py-4 sm:gap-6 sm:py-6 lg:flex-row-reverse lg:gap-6">
+    <div className="relative z-10 mx-auto flex min-h-screen w-[90%] max-w-[1500px] flex-col gap-4 py-3 sm:gap-6 sm:py-6 lg:flex-row-reverse lg:gap-6">
       <div className="min-w-0 lg:basis-1/2">
         <div className="relative h-56 w-full overflow-hidden rounded-3xl bg-gradient-to-br from-brand-500 via-brand-600 to-brand-800 sm:h-72 lg:h-full">
           <div className="grid-bg absolute inset-0 opacity-30" />
@@ -38,8 +38,10 @@ export async function AuthShell({ title, subtitle, children }: { title: string; 
           </div>
 
           {/* teacher photo (bottom) */}
-          <div className="absolute inset-x-0 bottom-0 flex h-[62%] items-end justify-center sm:h-[60%] lg:h-[58%]">
-            <Image src={s.img_auth || "/images/teacher-cut.webp"} alt={s.teacher_name} width={1000} height={1116} priority sizes="(min-width: 1024px) 45vw, 100vw" unoptimized={s.img_auth.startsWith("/api/")} className="h-full w-auto max-w-none object-contain object-bottom drop-shadow-[0_25px_35px_rgba(0,0,0,0.45)]" />
+          <div className="absolute inset-x-0 bottom-0 flex h-[62%] items-end justify-center px-6 sm:h-[60%] lg:h-[58%]">
+            <div className="relative h-full w-[78%] max-w-sm overflow-hidden rounded-t-[2.25rem] border-4 border-b-0 border-white/75 shadow-2xl">
+              <Image src={s.img_auth || "/images/teacher-about.jpg"} alt={s.teacher_name} width={928} height={1152} priority sizes="(min-width: 1024px) 45vw, 100vw" unoptimized={s.img_auth.startsWith("/api/")} className="h-full w-full object-cover object-top" />
+            </div>
           </div>
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-brand-900/60 to-transparent" />
           <div className="absolute bottom-4 right-6 z-20 hidden items-center gap-2 lg:flex">

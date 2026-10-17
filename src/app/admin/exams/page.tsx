@@ -4,7 +4,7 @@ import { CalendarClock, ShieldCheck } from "lucide-react";
 import { db } from "@/db";
 import { courses, quizAttempts, quizzes } from "@/db/schema";
 import { requireStaff } from "@/lib/auth";
-import { AiQuizImportForm } from "@/components/admin/forms";
+import { AiQuizFromJsonForm } from "@/components/admin/forms";
 import { Collapsible } from "@/components/ui-client";
 import { Badge, PageHeader, StatCard } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
@@ -33,11 +33,11 @@ export default async function AdminExams() {
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="المحتوى" title="الامتحانات" subtitle="كل امتحانات المنصة (امتحانات الدروس والامتحانات المستقلة) مع المواعيد والنتائج ومخالفات الغش" actions={<Link href="/admin/courses" className="btn btn-primary"><CalendarClock className="size-4" /> إنشاء امتحان من صفحة الكورس</Link>} />
-      <Collapsible title={<span className="flex items-center gap-2">🪄 إنشاء امتحان كامل بالذكاء الاصطناعي — الصق JSON من ChatGPT أو Gemini</span>}>
+      <Collapsible defaultOpen={list.length === 0} title={<span className="flex items-center gap-2">🪄 إنشاء امتحان كامل من JSON (ChatGPT / Gemini) — بدون أي إعدادات</span>}>
         {courseOptions.length === 0 ? (
           <p className="text-sm text-slate-500">أنشئ كورسًا أولًا من صفحة الكورسات.</p>
         ) : (
-          <AiQuizImportForm courses={courseOptions} />
+          <AiQuizFromJsonForm courses={courseOptions} />
         )}
       </Collapsible>
       <div className="grid gap-4 sm:grid-cols-4">

@@ -1,7 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { buildEmbedUrl, type VideoProvider } from "./utils";
-import { platformConfig } from "./config";
 
 /**
  * Server-only embed URL builder.
@@ -12,7 +11,7 @@ import { platformConfig } from "./config";
  */
 export function buildSecureEmbedUrl(provider: VideoProvider | null, url: string | null): string | null {
   if (provider === "bunny" && url) {
-    const key = platformConfig.bunny.tokenAuthKey;
+    const key = process.env.BUNNY_TOKEN_AUTH_KEY;
     const m = url.match(/iframe\.mediadelivery\.net\/(?:embed|play)\/(\d+)\/([A-Za-z0-9-]+)/);
     if (key && m) {
       const expires = Math.floor(Date.now() / 1000) + 3 * 3600;

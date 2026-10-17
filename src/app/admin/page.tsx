@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { and, count, desc, eq, gte, sql, sum } from "drizzle-orm";
-import { Activity, AlertTriangle, ArrowLeft, ArrowUpRight, Bot, BookOpen, CreditCard, GraduationCap, KeyRound, PlayCircle, ShieldAlert, ShieldCheck, Sparkles, Ticket, TrendingUp, Users, Wallet } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, Bot, BookOpen, CreditCard, Eye, GraduationCap, KeyRound, ListChecks, ShieldAlert, ShieldCheck, Ticket, TrendingUp, Users, Wallet } from "lucide-react";
 import { db } from "@/db";
-import { activationCodes, auditLogs, courses, enrollments, lessonProgress, paymentRequests, quizAttempts, sessions, users } from "@/db/schema";
+import { activationCodes, auditLogs, courses, enrollments, lessonProgress, lessons, paymentRequests, quizAttempts, sessions, users } from "@/db/schema";
 import { requireStaff } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
 import { aiConfigured } from "@/lib/payments";
@@ -32,7 +32,7 @@ export default async function AdminHome() {
 
   const [
     [students], [newStudents], [activeNow], [publishedCourses], [enroll7], [rev30], [revAll], [pendingAgg], [attempts7], [cancelled7], [codesUnused], [codesUsed],
-    revDaily, signupDaily, recentPayments, recentAudit, topCourses, recentStudents, [failedLogins7], topWatched,
+    revDaily, signupDaily, recentPayments, recentAudit, topCourses, recentStudents, [failedLogins7], watchedCourses,
   ] = await Promise.all([
     db.select({ c: count() }).from(users).where(eq(users.role, "student")),
     db.select({ c: count() }).from(users).where(and(eq(users.role, "student"), gte(users.createdAt, d7))),
@@ -53,7 +53,7 @@ export default async function AdminHome() {
     db.select({ id: courses.id, title: courses.title, c: count(enrollments.id) }).from(courses).leftJoin(enrollments, eq(enrollments.courseId, courses.id)).groupBy(courses.id).orderBy(desc(count(enrollments.id))).limit(5),
     db.select({ id: users.id, name: users.name, grade: users.grade, createdAt: users.createdAt }).from(users).where(eq(users.role, "student")).orderBy(desc(users.createdAt)).limit(6),
     db.select({ c: count() }).from(auditLogs).where(and(gte(auditLogs.createdAt, d7), sql`${auditLogs.action} in ('login.failed','login.rate_limited','code.failed','code.rate_limited')`)),
-    db.select({ id: courses.id, title: courses.title, c: count(lessonProgress.id) }).from(courses).leftJoin(lessonProgress, eq(lessonProgress.courseId, courses.id)).groupBy(courses.id).orderBy(desc(count(lessonProgress.id))).limit(5),
+    db.select({ id: courses.id, title: courses.title, c: count(lessonProgress.id) }).from(courses).leftJoin(lessons, eq(lessons.courseId, courses.id)).leftJoin(lessonProgress, eq(lessonProgress.lessonId, lessons.id)).groupBy(courses.id).orderBy(desc(count(lessonProgress.id))).limit(5),
   ]);
 
   const revMap = new Map(revDaily.map((r) => [r.day, Number(r.s)]));
@@ -69,8 +69,8 @@ export default async function AdminHome() {
   const checks = [
     { ok: Boolean(s.vodafone_cash_number), label: "رقم فودافون كاش للاستلام", href: "/admin/settings" },
     { ok: aiConfigured(s), label: "التحقق الآلي من الإيصالات (AI)", href: "/admin/ai" },
-    { ok: isGoogleConfigured(), label: "تسجيل الدخول عبر Google", href: "/admin/security" },
-    { ok: Boolean(process.env.NEXT_PUBLIC_APP_URL), label: "رابط الموقع NEXT_PUBLIC_APP_URL", href: "/admin/security" },
+    { ok: isGoogleConfigured(), label: "تسجيل الدخول عبر Google", href: "/admin/setup" },
+    { ok: Boolean(process.env.NEXT_PUBLIC_APP_URL), label: "رابط الموقع NEXT_PUBLIC_APP_URL", href: "/admin/setup" },
     { ok: Number(publishedCourses.c) > 0, label: "كورسات منشورة", href: "/admin/courses" },
   ];
   const suspicious = Number(failedLogins7.c ?? 0) + Number(cancelled7.c);
@@ -79,40 +79,34 @@ export default async function AdminHome() {
     <div className="space-y-6">
       <PageHeader eyebrow="نظرة عامة" title="لوحة التحكم" subtitle={`آخر تحديث ${new Intl.DateTimeFormat("ar-EG", { dateStyle: "full", timeStyle: "short", timeZone: "Africa/Cairo" }).format(new Date())}`} actions={<Link href="/admin/payments" className="btn btn-primary">مراجعة المدفوعات <ArrowLeft className="size-4" /></Link>} />
 
-      {/* Step-by-step starter guide — simple for any teacher */}
-      <section className="rounded-2xl border border-brand-200 bg-gradient-to-l from-brand-50 via-white to-peach-50 p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="flex items-center gap-2 text-sm font-black text-slate-900"><Sparkles className="size-4 text-peach-500" /> ابدأ من هنا — 4 خطوات فقط</p>
-            <p className="mt-0.5 text-xs text-slate-500">اتبع الخطوات بالترتيب، كل خطوة فيها شرح واضح جوّه الصفحة.</p>
-          </div>
-          <Link href="/admin/courses" className="btn btn-outline btn-sm">فتح الكورسات</Link>
-        </div>
-        <ol className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {/* ─── Simple step-by-step workflow – built for any teacher, no tech skills needed ─── */}
+      <section className="card p-5">
+        <h2 className="mb-4 flex items-center gap-2 font-amin text-base font-bold text-slate-900"><ListChecks className="size-5 text-brand-500" /> ابدأ من هنا – خطوة بخطوة</h2>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
-            { n: 1, href: "/admin/courses", t: "أنشئ الكورس", d: "اسم + صف + سعر ← ثم أضف الفصول والدروس بالسحب والإسقاط" },
-            { n: 2, href: "/admin/exams", t: "كوّن الامتحان", d: "الصق رابط يوتيوب أو JSON من ChatGPT — الامتحان يتكوّن تلقائيًا" },
-            { n: 3, href: "/admin/students", t: "فعّل الطلاب", d: "كود سنتر أو طلب دفع — التفعيل بضغطة واحدة" },
-            { n: 4, href: "/admin/settings", t: "اضبط الهوية", d: "رقم الواتساب، الباقات، أرقام الدفع، وصور الموقع" },
+            { n: 1, href: "/admin/settings", t: "اضبط بيانات المنصة", d: "أرقام التواصل، طرق الدفع، واسم المدرّس" },
+            { n: 2, href: "/admin/courses", t: "ابنِ المنهج", d: "كورس ← فصول ← دروس، بالسحب والإاسقاط وجلب يوتيوب تلقائيًا" },
+            { n: 3, href: "/admin/exams", t: "أنشئ الامتحانات", d: "لصق JSON من ChatGPT/Gemini – تصحيح تلقائي فوري" },
+            { n: 4, href: "/admin/students", t: "تابع طلابك ومبيعاتك", d: "الطلاب، طلبات الدفع، وأكواد السنتر" },
           ].map((s) => (
-            <li key={s.n}>
-              <Link href={s.href} className="group flex h-full items-start gap-3 rounded-xl border border-white bg-white/90 p-3.5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-glow">
-                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 font-amin text-sm font-bold text-white">{s.n}</span>
-                <span className="min-w-0">
-                  <span className="flex items-center gap-1 text-sm font-black text-slate-900">{s.t} <ArrowUpRight className="size-3.5 text-brand-500 opacity-0 transition group-hover:opacity-100" /></span>
-                  <span className="mt-0.5 block text-[11px] leading-5 text-slate-500">{s.d}</span>
-                </span>
-              </Link>
-            </li>
+            <Link key={s.n} href={s.href} className="group flex items-start gap-3 rounded-2xl border border-lav-200 bg-lav-50/60 p-4 transition hover:border-brand-400 hover:bg-white">
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 font-amin text-sm font-bold text-white">{s.n}</span>
+              <span>
+                <span className="block text-sm font-black text-slate-900 group-hover:text-brand-700">{s.t}</span>
+                <span className="mt-0.5 block text-[11px] leading-5 text-slate-500">{s.d}</span>
+              </span>
+            </Link>
           ))}
-        </ol>
+        </div>
       </section>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="الطلاب" value={Number(students.c)} icon={<Users className="size-5" />} hint={`+${Number(newStudents.c)} هذا الأسبوع • ${Number(activeNow.c)} نشط خلال 24 ساعة`} />
-        <StatCard label="إيرادات 30 يوم" value={formatMoney(Number(rev30.s ?? 0))} icon={<TrendingUp className="size-5" />} tone="success" hint={`الإجمالي ${formatMoney(Number(revAll.s ?? 0))}`} />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <StatCard label="إجمالي عدد الطلاب" value={Number(students.c)} icon={<Users className="size-5" />} hint={`+${Number(newStudents.c)} هذا الأسبوع • ${Number(activeNow.c)} نشط خلال 24 ساعة`} />
+        <StatCard label="المبيعات (30 يوم)" value={formatMoney(Number(rev30.s ?? 0))} icon={<TrendingUp className="size-5" />} tone="success" hint={`إجمالي المبيعات ${formatMoney(Number(revAll.s ?? 0))}`} />
+        <StatCard label="تفعيلات الأكواد" value={Number(codesUsed.c)} icon={<Ticket className="size-5" />} tone="violet" hint={`${Number(codesUnused.c)} كود متاح للتفعيل`} />
         <StatCard label="طلبات دفع معلّقة" value={Number(pendingAgg.c)} icon={<CreditCard className="size-5" />} tone="accent" hint={`بقيمة ${formatMoney(Number(pendingAgg.s ?? 0))}`} />
         <StatCard label="اشتراكات هذا الأسبوع" value={Number(enroll7.c)} icon={<GraduationCap className="size-5" />} tone="violet" hint={`${Number(publishedCourses.c)} كورس منشور`} />
+        <StatCard label="إجمالي المبيعات" value={formatMoney(Number(revAll.s ?? 0))} icon={<Wallet className="size-5" />} tone="success" hint="كل المدفوعات المؤكدة" />
       </div>
 
       {suspicious > 10 && (
@@ -185,44 +179,39 @@ export default async function AdminHome() {
           )}
         </section>
 
-        <div className="space-y-6">
-          <section className="card p-5">
-            <h2 className="mb-3 flex items-center gap-2 font-amin text-base font-bold text-slate-900"><BookOpen className="size-4 text-brand-500" /> أكثر الكورسات اشتراكًا</h2>
-            <ul className="space-y-2">
-              {topCourses.map((c, i) => {
-                const max = Number(topCourses[0]?.c ?? 1) || 1;
-                return (
-                  <li key={c.id}>
-                    <Link href={`/admin/courses/${c.id}`} className="block rounded-lg px-1 py-1 hover:bg-lav-50">
-                      <div className="flex items-center justify-between text-xs"><span className="truncate font-bold text-slate-800">{i + 1}. {c.title}</span><span className="text-slate-500">{Number(c.c)}</span></div>
-                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-lav-200"><div className="h-full rounded-full bg-gradient-to-l from-brand-500 to-peach-400" style={{ width: `${(Number(c.c) / max) * 100}%` }} /></div>
-                    </Link>
-                  </li>
-                );
-              })}
-              {topCourses.length === 0 && <li className="text-sm text-slate-500">لا توجد كورسات بعد.</li>}
-            </ul>
-          </section>
+        <section className="card p-5">
+          <h2 className="mb-3 flex items-center gap-2 font-amin text-base font-bold text-slate-900"><BookOpen className="size-4 text-brand-500" /> أكثر الكورسات اشتراكًا</h2>
+          <ul className="space-y-2">
+            {topCourses.map((c, i) => {
+              const max = Number(topCourses[0]?.c ?? 1) || 1;
+              return (
+                <li key={c.id}>
+                  <Link href={`/admin/courses/${c.id}`} className="block rounded-lg px-1 py-1 hover:bg-lav-50">
+                    <div className="flex items-center justify-between text-xs"><span className="truncate font-bold text-slate-800">{i + 1}. {c.title}</span><span className="text-slate-500">{Number(c.c)}</span></div>
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-lav-200"><div className="h-full rounded-full bg-gradient-to-l from-brand-500 to-peach-400" style={{ width: `${(Number(c.c) / max) * 100}%` }} /></div>
+                  </Link>
+                </li>
+              );
+            })}
+            {topCourses.length === 0 && <li className="text-sm text-slate-500">لا توجد كورسات بعد.</li>}
+          </ul>
 
-          <section className="card p-5">
-            <h2 className="mb-3 flex items-center gap-2 font-amin text-base font-bold text-slate-900"><PlayCircle className="size-4 text-peach-500" /> أكثر الكورسات مشاهدة</h2>
-            <ul className="space-y-2">
-              {topWatched.map((c, i) => {
-                const max = Number(topWatched[0]?.c ?? 1) || 1;
-                return (
-                  <li key={c.id}>
-                    <Link href={`/admin/courses/${c.id}`} className="block rounded-lg px-1 py-1 hover:bg-lav-50">
-                      <div className="flex items-center justify-between text-xs"><span className="truncate font-bold text-slate-800">{i + 1}. {c.title}</span><span className="text-slate-500">{Number(c.c)} درس</span></div>
-                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-lav-200"><div className="h-full rounded-full bg-gradient-to-l from-peach-500 to-brand-400" style={{ width: `${(Number(c.c) / max) * 100}%` }} /></div>
-                    </Link>
-                  </li>
-                );
-              })}
-              {topWatched.length === 0 && <li className="text-sm text-slate-500">لا توجد مشاهدات بعد.</li>}
-            </ul>
-            <p className="mt-3 text-[11px] text-slate-400">عدد الدروس التي أكملها الطلاب في كل كورس.</p>
-          </section>
-        </div>
+          <h2 className="mb-3 mt-6 flex items-center gap-2 font-amin text-base font-bold text-slate-900"><Eye className="size-4 text-peach-500" /> أكثر الكورسات مشاهدة</h2>
+          <ul className="space-y-2">
+            {watchedCourses.map((c, i) => {
+              const max = Number(watchedCourses[0]?.c ?? 1) || 1;
+              return (
+                <li key={c.id}>
+                  <Link href={`/admin/courses/${c.id}`} className="block rounded-lg px-1 py-1 hover:bg-lav-50">
+                    <div className="flex items-center justify-between text-xs"><span className="truncate font-bold text-slate-800">{i + 1}. {c.title}</span><span className="text-slate-500">{Number(c.c)} مشاهدة</span></div>
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-lav-200"><div className="h-full rounded-full bg-gradient-to-l from-peach-500 to-brand-400" style={{ width: `${(Number(c.c) / max) * 100}%` }} /></div>
+                  </Link>
+                </li>
+              );
+            })}
+            {watchedCourses.length === 0 && <li className="text-sm text-slate-500">لا توجد مشاهدات بعد.</li>}
+          </ul>
+        </section>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">

@@ -2,8 +2,8 @@
 
 /* ─────────────────────────────────────────────────────────────
    Self-hosted Arabic fonts (SIL Open Font License) — copied from
-   @fontsource into /public/fonts. No external Google Fonts request at
-   build or runtime, so the platform works offline and loads faster.
+   @fontsource into /public/fonts. Loaded from the same origin, so
+   there is no Google Fonts request and the CSP can stay tight.
    ───────────────────────────────────────────────────────────── */
 @font-face { font-family: "Almarai"; font-style: normal; font-weight: 300; font-display: swap; src: url("/fonts/almarai-arabic-300-normal.woff2") format("woff2"); unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0898-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
 @font-face { font-family: "Almarai"; font-style: normal; font-weight: 300; font-display: swap; src: url("/fonts/almarai-latin-300-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
@@ -32,12 +32,6 @@
 @font-face { font-family: "Baloo Bhaijaan 2"; font-style: normal; font-weight: 800; font-display: swap; src: url("/fonts/baloo-bhaijaan-2-arabic-800-normal.woff2") format("woff2"); unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0898-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
 @font-face { font-family: "Baloo Bhaijaan 2"; font-style: normal; font-weight: 800; font-display: swap; src: url("/fonts/baloo-bhaijaan-2-latin-800-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 
-:root {
-  --font-almarai: "Almarai", "Segoe UI", Tahoma, system-ui, sans-serif;
-  --font-tajawal: "Tajawal", "Almarai", "Segoe UI", Tahoma, sans-serif;
-  --font-baloo: "Baloo Bhaijaan 2", "Almarai", "Segoe UI", Tahoma, sans-serif;
-}
-
 
 
 /* class-based dark mode: <html class="dark"> */
@@ -51,9 +45,9 @@
    fonts    Almarai (ui) • Tajawal (body) • Baloo Bhaijaan 2 (display)
    ───────────────────────────────────────────────────────────── */
 @theme {
-  --font-sans: var(--font-almarai), "Segoe UI", Tahoma, system-ui, sans-serif;
-  --font-taj: var(--font-tajawal), var(--font-almarai), sans-serif;
-  --font-amin: var(--font-baloo), var(--font-almarai), sans-serif;
+  --font-sans: "Almarai", "Segoe UI", Tahoma, system-ui, sans-serif;
+  --font-taj: "Tajawal", "Almarai", sans-serif;
+  --font-amin: "Baloo Bhaijaan 2", "Almarai", sans-serif;
 
   /* primary – mystic violet */
   --color-brand-50: #f6f3ff;
@@ -201,13 +195,16 @@ details > summary::-webkit-details-marker {
 
 @layer components {
   /* Fluid page gutters.
-     Phones ~4% each side • TABLET exactly 10% each side (content = 80% of the screen)
-     • laptops ~7% • capped on desktop. */
+     ── Responsive scaling rules ───────────────────────────────
+     • Phones: ~4% gutters.
+     • Tablets (768–1023px): EXACTLY 10% per side → content = 80% of the
+       screen, so no card/image ever overflows and the sides stay comfy.
+     • Laptops+: ~7% gutters, capped on very wide screens.               */
   .container-x {
     @apply mx-auto w-full max-w-7xl;
     padding-inline: clamp(1rem, 4vw, 1.5rem);
   }
-  @media (min-width: 768px) and (max-width: 1023px) {
+  @media (min-width: 768px) {
     .container-x { padding-inline: 10vw; }
   }
   @media (min-width: 1024px) {
@@ -220,33 +217,12 @@ details > summary::-webkit-details-marker {
   .section-gutter {
     padding-inline: clamp(1rem, 4vw, 1.5rem);
   }
-  @media (min-width: 768px) and (max-width: 1023px) {
+  @media (min-width: 768px) {
     .section-gutter { padding-inline: 10vw; }
   }
   @media (min-width: 1024px) {
     .section-gutter { padding-inline: clamp(2.5rem, 7vw, 5rem); }
   }
-
-  /* Auth pages (login / register): the box + side image occupy 90% of the screen */
-  .auth-shell {
-    width: 94%;
-    margin-inline: auto;
-  }
-  @media (min-width: 640px) {
-    .auth-shell { width: 90%; }
-  }
-
-  /* Dashboards (admin + student): 90% of the screen so tables/charts breathe */
-  .dash-x {
-    width: 90%;
-    margin-inline: auto;
-  }
-
-  /* Drag & Drop curriculum reordering */
-  .dragging { opacity: 0.35; }
-  .drop-before { box-shadow: 0 -3px 0 0 var(--color-brand-500), 0 0 14px rgba(124, 92, 255, 0.55); }
-  .drop-after { box-shadow: 0 3px 0 0 var(--color-brand-500), 0 0 14px rgba(124, 92, 255, 0.55); }
-  .drop-zone { box-shadow: 0 0 0 2px var(--color-brand-500), 0 0 18px rgba(124, 92, 255, 0.4); }
 
   .smooth {
     @apply transition-all duration-300 ease-in-out;
@@ -366,7 +342,7 @@ details > summary::-webkit-details-marker {
     padding-inline: clamp(1rem, 4vw, 1.5rem);
     scrollbar-width: none;
   }
-  @media (min-width: 768px) and (max-width: 1023px) { .slider { padding-inline: 10vw; } }
+  @media (min-width: 768px) { .slider { padding-inline: 10vw; } }
   @media (min-width: 1024px) { .slider { padding-inline: clamp(2.5rem, 7vw, 5rem); } }
   .slider::-webkit-scrollbar {
     display: none;
@@ -468,6 +444,11 @@ details > summary::-webkit-details-marker {
 .dark * {
   scrollbar-color: rgba(161, 134, 255, 0.35) transparent;
 }
+
+/* ───────── Theme switching is INSTANT (localStorage + <html class="dark">) ─────────
+   The saved theme is applied in <head> before first paint, and toggling flips
+   the class on <html> immediately (< 10 ms) – no cross-fade, no lag. */
+html.dark, html.dark body { color-scheme: dark; }
 
 /* utilities that must change meaning in dark mode (low specificity on purpose so hover: variants still win) */
 @layer utilities {
@@ -598,11 +579,9 @@ button, a.btn, .btn { -webkit-tap-highlight-color: transparent; touch-action: ma
 .label { color: #475569; }
 
 /* ─────────────────────────────────────────────────────────────
-   TESTIMONIALS MARQUEE — glides right→left straight on the page
-   background (no floating box, no inner theme)
+   TESTIMONIALS MARQUEE
    ───────────────────────────────────────────────────────────── */
 .marquee {
-  direction: rtl;
   overflow: hidden;
   mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent);
   -webkit-mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent);

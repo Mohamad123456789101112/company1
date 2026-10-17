@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, count, desc, eq, gt, inArray, isNull, or, sum } from "drizzle-orm";
 import { db } from "@/db";
 import { announcements, courseUnits, courses, enrollments, lessonAccess, lessonProgress, lessons, notifications, quizzes, testimonials, type Grade } from "@/db/schema";
+import { ensureDefaultCourses } from "@/lib/default-courses";
 import type { CourseCardData } from "@/components/course-card";
 
 type CourseStats = Record<string, { lessonsCount: number; durationMinutes: number }>;
@@ -19,6 +20,7 @@ async function lessonStats(courseIds: string[]): Promise<CourseStats> {
 }
 
 export async function getPublishedCourses(opts: { grade?: Grade; featured?: boolean; limit?: number } = {}): Promise<CourseCardData[]> {
+  await ensureDefaultCourses();
   const conds = [eq(courses.isPublished, true)];
   if (opts.grade) conds.push(eq(courses.grade, opts.grade));
   if (opts.featured) conds.push(eq(courses.isFeatured, true));
@@ -30,6 +32,7 @@ export async function getPublishedCourses(opts: { grade?: Grade; featured?: bool
 }
 
 export async function getCourseBySlug(slug: string) {
+  await ensureDefaultCourses();
   const [course] = await db.select().from(courses).where(eq(courses.slug, slug)).limit(1);
   return course ?? null;
 }

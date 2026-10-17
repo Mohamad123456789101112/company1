@@ -13,7 +13,6 @@ import {
   ipFromHeaders,
   isSecureContext,
 } from "./security";
-import { platformConfig } from "./config";
 
 export const SESSION_COOKIE = "aj_session";
 const SESSION_DAYS = 30;
@@ -183,5 +182,9 @@ export async function requireAdmin(): Promise<User> {
 
 /** Emails listed in ADMIN_EMAILS env var are auto-promoted to admin. */
 export function isBootstrapAdminEmail(email: string) {
-  return platformConfig.security.adminEmails.includes(email.toLowerCase());
+  const list = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return list.includes(email.toLowerCase());
 }

@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { courseUnits, lessons, questions, quizAttempts, quizzes, users } from "@/db/schema";
 import { requireStaff } from "@/lib/auth";
 import { deleteQuestionAction, deleteQuizAction } from "@/actions/admin";
-import { AiQuizImportForm, BulkQuestionsForm, QuestionForm, QuizForm } from "@/components/admin/forms";
+import { BulkQuestionsForm, QuestionForm, QuizForm } from "@/components/admin/forms";
 import { Collapsible, ConfirmForm } from "@/components/ui-client";
 import { Badge, PageHeader, StatCard } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
@@ -57,10 +57,6 @@ export default async function AdminQuizPage({ params }: { params: Promise<{ id: 
       </div>
       <Collapsible title="إعدادات الامتحان (الربط، المدة، الموعد، منع الغش)">
         <QuizForm quiz={quiz} tree={tree} />
-      </Collapsible>
-
-      <Collapsible title={<span className="flex items-center gap-2">🤖 توليد الأسئلة بالذكاء الاصطناعي (JSON من ChatGPT / Gemini)</span>}>
-        <AiQuizImportForm quizId={quiz.id} />
       </Collapsible>
 
       <div className="grid gap-4 lg:grid-cols-2">

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
-import { ArrowLeft, Award, BookOpen, CalendarClock, CheckCircle2, ClipboardCheck, Clock3, Flame, KeyRound, Medal, PlayCircle, ShoppingBag, Sparkles, Star, Target, Trophy, Zap } from "lucide-react";
+import { ArrowLeft, Award, BookOpen, CalendarClock, CheckCircle2, ClipboardCheck, Clock3, Flame, KeyRound, Medal, PlayCircle, ShoppingBag, Sparkles, Star, Target, TrendingUp, Trophy, Zap } from "lucide-react";
 import { db } from "@/db";
 import { courses, lessonProgress, lessons, paymentRequests, quizAttempts, quizzes, users } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
@@ -241,7 +241,7 @@ export default async function DashboardHome({ searchParams }: { searchParams: Pr
             )}
           </section>
 
-          {/* activity + exam trend */}
+          {/* activity + recent exams */}
           <div className="grid gap-6 md:grid-cols-2">
             <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
               <div className="mb-2 flex items-center justify-between">
@@ -249,23 +249,6 @@ export default async function DashboardHome({ searchParams }: { searchParams: Pr
                 <span className="text-xs text-slate-500">{activeDays} أيام نشطة</span>
               </div>
               <BarChart data={days} height={120} color="from-brand-500 to-peach-300" valueSuffix=" درس" />
-            </section>
-            <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="flex items-center gap-2 font-amin text-base font-bold text-slate-900"><Target className="size-4 text-brand-500" /> متوسط درجات الامتحانات</h2>
-                <span className="text-xs font-bold text-emerald-600">{avg}%</span>
-              </div>
-              {attempts.length === 0 ? (
-                <p className="rounded-xl bg-slate-50 p-5 text-center text-sm text-slate-500">سلّم أول امتحان ليظهر تطور مستواك هنا.</p>
-              ) : (
-                <BarChart
-                  data={[...attempts].slice(0, 8).reverse().map((a, i) => ({ label: `${i + 1}`, value: a.percent, hint: a.quizTitle }))}
-                  height={120}
-                  color="from-emerald-500 to-brand-300"
-                  valueSuffix="%"
-                />
-              )}
-              <p className="mt-2 text-[11px] text-slate-400">آخر {Math.min(attempts.length, 8)} امتحاناً — الأعلى {best}%</p>
             </section>
             <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
               <div className="mb-3 flex items-center justify-between">
@@ -288,6 +271,24 @@ export default async function DashboardHome({ searchParams }: { searchParams: Pr
               )}
             </section>
           </div>
+
+          {/* grades trend chart – average quiz grades over time */}
+          <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 font-amin text-base font-bold text-slate-900"><TrendingUp className="size-4 text-emerald-500" /> متوسط درجات الامتحانات – آخر 8 محاولات</h2>
+              <span className="text-xs text-slate-500">متوسطك الكلي {avg}%</span>
+            </div>
+            {attempts.length === 0 ? (
+              <p className="rounded-xl bg-slate-50 p-5 text-center text-sm text-slate-500">سلّم أول امتحان لتظهر هنا منحنى تطور درجاتك.</p>
+            ) : (
+              <BarChart
+                data={[...attempts].slice(0, 8).reverse().map((a) => ({ label: formatDate(a.submittedAt).split(" ")[0], value: a.percent, hint: a.quizTitle }))}
+                height={130}
+                color="from-emerald-500 to-emerald-200"
+                valueSuffix="%"
+              />
+            )}
+          </section>
         </div>
 
         <div className="space-y-6">

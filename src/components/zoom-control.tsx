@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 const KEY = "aj-zoom";
 const STEPS = [70, 80, 90, 100, 110, 120, 130, 150];
-/** Default = 100%. Scaling is handled by the 80% / 90% responsive widths, not by zoom. */
+/** Default = 100%. The 80%/90% widths already handle scaling on tablets. */
 const DEFAULT = 100;
 
 /** Applies the zoom to <html> (CSS zoom; falls back to font-size scaling where unsupported). */

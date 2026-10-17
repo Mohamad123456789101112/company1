@@ -1,5 +1,4 @@
 import "server-only";
-import { platformConfig } from "./config";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 /**
@@ -21,7 +20,7 @@ export type MediaPayload = {
 };
 
 function secret(): string {
-  const s = platformConfig.security.mediaSigningSecret;
+  const s = process.env.MEDIA_SIGNING_SECRET || process.env.AUTH_SECRET || process.env.DATABASE_URL;
   if (!s) throw new Error("MEDIA_SIGNING_SECRET is required");
   return s;
 }

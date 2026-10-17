@@ -9,7 +9,7 @@ import { getCourseById, getCourseExams } from "@/lib/data";
 import { bunnyConfigured, getSettings } from "@/lib/settings";
 import { deleteCourseAction } from "@/actions/admin";
 import { CourseForm, StandaloneQuizForm } from "@/components/admin/forms";
-import { CurriculumDnd } from "@/components/admin/curriculum-dnd";
+import { CourseBuilder } from "@/components/admin/course-builder";
 import { Collapsible, ConfirmForm } from "@/components/ui-client";
 import { Badge, PageHeader } from "@/components/ui";
 import { formatDate, gradeLabel } from "@/lib/utils";
@@ -54,16 +54,8 @@ export default async function AdminCourseDetail({ params }: { params: Promise<{ 
         <CourseForm course={course} />
       </Collapsible>
 
-      <h2 className="flex flex-wrap items-center gap-2 text-lg font-black text-slate-900">
-        المنهج: الكورس ← الفصول ← الدروس
-        <span className="text-xs font-bold text-slate-500">(اسحب وأفلت للترتيب)</span>
-      </h2>
-      <CurriculumDnd
-        key={tree.map((u) => `${u.id}:${u.lessons.map((l) => l.id).join(".")}`).join("|")}
-        courseId={course.id}
-        units={tree}
-        bunnyEnabled={bunnyOn}
-      />
+      <h2 className="text-lg font-black text-slate-900">المنهج: الوحدات والدروس</h2>
+      <CourseBuilder courseId={course.id} units={tree} bunnyEnabled={bunnyOn} />
 
       <h2 className="flex items-center gap-2 text-lg font-black text-slate-900"><CalendarClock className="size-5 text-peach-500" /> امتحانات الكورس</h2>
       <p className="-mt-4 text-xs text-slate-500">كل امتحانات هذا الكورس: شامل على الكورس، على وحدة/فصل، أو على درس محدد – بمواعيد ومنع غش، ويصل إشعار للطلاب المشتركين عند النشر.</p>

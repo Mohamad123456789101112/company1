@@ -8,12 +8,12 @@ import {
   createCourseAction,
   createLessonAction,
   createQuestionAction,
+  createQuizFromJsonAction,
   createStandaloneQuizAction,
   createTestimonialAction,
   createUnitAction,
   generateCodesAction,
   importQuestionsAction,
-  importQuizJsonAction,
   updateCourseAction,
   updateLessonAction,
   updateQuestionAction,
@@ -319,8 +319,74 @@ export function QuestionForm({ quizId, question }: { quizId: string; question?: 
   );
 }
 
+export const QUIZ_JSON_TEMPLATE = `{
+  "title": "امتحان الفصل الأول – قانون أوم",
+  "questions": [
+    {
+      "text": "وحدة قياس المقاومة الكهربائية في النظام الدولي هي:",
+      "options": ["الأوم", "الفولت", "الأمبير", "الواط"],
+      "correctIndex": 0,
+      "explanation": "المقاومة تُقاس بالأوم (Ω) وقانونها R = V/I",
+      "points": 1
+    },
+    {
+      "text": "إذا تضاعف فرق الجهد عند ثبات المقاومة فإن التيار:",
+      "options": ["يتضاعف", "يقل للنصف", "لا يتغير", "يصبح صفرًا"],
+      "correctIndex": 0,
+      "explanation": "من قانون أوم I = V/R فالتيار يتناسب طرديًا مع الجهد",
+      "points": 1
+    }
+  ]
+}`;
+
+/**
+ * AI Quiz Generator – one-step creation from the exams page:
+ * choose the course, paste the JSON (or upload a .json file) and the exam is
+ * built with its questions and automatic grading right away.
+ */
+export function AiQuizFromJsonForm({ courses }: { courses: { id: string; title: string }[] }) {
+  const [state, action] = useActionState(createQuizFromJsonAction, null);
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-brand-200 bg-brand-50/60 p-4 text-xs leading-6 text-slate-700 dark:border-brand-300/40 dark:bg-brand-50/20 dark:text-slate-300">
+        <p className="text-sm font-black text-slate-900 dark:text-white">🤖 امتحان كامل في ثوانٍ بالذكاء الاصطناعي</p>
+        <ol className="mt-2 list-inside list-decimal space-y-1">
+          <li>انسخ القالب الجاهز وضعه في ChatGPT أو Gemini مع اسم الموضوع.</li>
+          <li>ارجع هنا والصق الـ JSON (أو ارفع ملف .json).</li>
+          <li>اختر الكورس واضغط «إنشاء الامتحان» — يتكوّن بالتصحيح التلقائي فورًا.</li>
+        </ol>
+        <div className="mt-3"><CopyButton text={QUIZ_JSON_TEMPLATE} label="نسخ قالب JSON الجاهز" /></div>
+      </div>
+      <form action={action} className="space-y-3">
+        <FormMessage state={state} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="الكورس" name="aiq_course">
+            <Select id="aiq_course" name="courseId" required defaultValue={courses[0]?.id}>
+              {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+            </Select>
+          </Field>
+          <Field label="عنوان الامتحان (اختياري – يُستخدم عنوان JSON إن وجد)" name="aiq_title">
+            <Input id="aiq_title" name="title" maxLength={150} placeholder="امتحان الفصل الأول" />
+          </Field>
+        </div>
+        <Field label="الصق JSON هنا" name="aiq_json" hint="لو الملف كبير: ارفع ملف .json من الأسفل بدلًا من اللصق">
+          <Textarea id="aiq_json" name="json" dir="ltr" className="min-h-52 font-mono text-[11px] leading-5" placeholder={QUIZ_JSON_TEMPLATE} />
+        </Field>
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-3">
+          <label className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-600">
+            أو ارفع ملف ‎.json‎:
+            <input type="file" name="jsonFile" accept=".json,application/json" className="text-xs file:me-2 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-brand-700" />
+          </label>
+        </div>
+        <SubmitButton className="btn btn-accent" pendingText="جارٍ إنشاء الامتحان..."><Sparkles className="size-4" /> إنشاء الامتحان الآن</SubmitButton>
+      </form>
+    </div>
+  );
+}
+
 export function BulkQuestionsForm({ quizId }: { quizId: string }) {
   const [state, action] = useActionState(importQuestionsAction, null);
+  const [mode, setMode] = useState<"text" | "json">("text");
   const example = `1. وحدة قياس القوة في النظام الدولي هي:
 أ) الجول
 ب) النيوتن *
@@ -338,106 +404,33 @@ export function BulkQuestionsForm({ quizId }: { quizId: string }) {
     <form action={action} className="space-y-3">
       <FormMessage state={state} />
       <input type="hidden" name="quizId" value={quizId} />
-      <Field label="الصق الأسئلة هنا (سؤال في كل كتلة، وسطر فارغ بين الأسئلة)" name="bulk_text" hint="حدّد الإجابة الصحيحة بنجمة * بعد الاختيار أو بسطر «الإجابة: ب». سطر «شرح:» اختياري.">
-        <Textarea id="bulk_text" name="text" required className="min-h-56 font-mono text-xs leading-6" placeholder={example} dir="rtl" />
-      </Field>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => setMode("text")} className={`btn btn-sm ${mode === "text" ? "btn-primary" : "btn-outline"}`}>📄 لصق نص (Word)</button>
+        <button type="button" onClick={() => setMode("json")} className={`btn btn-sm ${mode === "json" ? "btn-primary" : "btn-outline"}`}><Sparkles className="size-3.5" /> توليد بالذكاء الاصطناعي (JSON)</button>
+        {mode === "json" && <CopyButton text={QUIZ_JSON_TEMPLATE} label="نسخ القالب JSON الجاهز" />}
+      </div>
+
+      {mode === "text" ? (
+        <Field label="الصق الأسئلة هنا (سؤال في كل كتلة، وسطر فارغ بين الأسئلة)" name="bulk_text" hint="حدّد الإجابة الصحيحة بنجمة * بعد الاختيار أو بسطر «الإجابة: ب». سطر «شرح:» اختياري.">
+          <Textarea id="bulk_text" name="text" required className="min-h-56 font-mono text-xs leading-6" placeholder={example} dir="rtl" />
+        </Field>
+      ) : (
+        <Field
+          label="الصق كود JSON من ChatGPT أو Gemini"
+          name="bulk_json"
+          hint="انسخ القالب الجاهز أعلاه وأعطِه لأي ذكاء اصطناعي مع طلب توليد أسئلة بالتنسيق نفسه، ثم الصق الناتج هنا – سيُنشأ الامتحان بالكامل بالتصحيح التلقائي في ثوانٍ."
+        >
+          <Textarea id="bulk_json" name="text" required className="min-h-56 font-mono text-[11px] leading-6" placeholder={QUIZ_JSON_TEMPLATE} dir="ltr" />
+        </Field>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-[160px_1fr] sm:items-end">
-        <Field label="درجة كل سؤال" name="bulk_points"><Input id="bulk_points" name="points" type="number" min={1} max={20} defaultValue={1} dir="ltr" /></Field>
-        <SubmitButton className="btn btn-accent" pendingText="جارٍ الاستيراد..."><Wand2 className="size-4" /> استيراد الأسئلة دفعة واحدة</SubmitButton>
+        <Field label="درجة كل سؤال (افتراضي)" name="bulk_points"><Input id="bulk_points" name="points" type="number" min={1} max={20} defaultValue={1} dir="ltr" /></Field>
+        <SubmitButton className="btn btn-accent" pendingText="جارٍ الاستيراد...">
+          <Wand2 className="size-4" /> {mode === "json" ? "توليد الامتحان بالكامل بالتصحيح التلقائي" : "استيراد الأسئلة دفعة واحدة"}
+        </SubmitButton>
       </div>
     </form>
-  );
-}
-
-/* ───────────── AI Quiz Generator (JSON from ChatGPT / Gemini) ───────────── */
-
-export const AI_QUIZ_TEMPLATE = `{
-  "title": "امتحان شامل – الفصل الأول",
-  "durationMinutes": 20,
-  "passPercent": 50,
-  "maxAttempts": 3,
-  "questions": [
-    {
-      "question": "وحدة قياس المقاومة الكهربية في النظام الدولي هي:",
-      "options": ["الأوم", "الفولت", "الأمبير", "الواط"],
-      "correctIndex": 0,
-      "explanation": "المقاومة تُقاس بالأوم Ω حسب قانون أوم R = V / I",
-      "points": 1
-    },
-    {
-      "question": "إذا تضاعفت شدة التيار وثبتت المقاومة فإن فرق الجهد:",
-      "options": ["يقل للنصف", "يبقى ثابتًا", "يتضاعف", "يزيد أربع مرات"],
-      "correct": "ج",
-      "explanation": "من قانون أوم V = I × R فإن V تتناسب طرديًا مع I"
-    }
-  ]
-}`;
-
-/**
- * AI Quiz Generator:
- *  - In "new exam" mode the teacher picks a course, pastes the JSON and the whole
- *    exam (title, duration, pass mark, questions, auto-correction) is created.
- *  - In "append" mode the questions are added to the current exam.
- */
-export function AiQuizImportForm({ quizId, courses, courseId }: { quizId?: string; courses?: { id: string; title: string }[]; courseId?: string }) {
-  const [state, action] = useActionState(importQuizJsonAction, null);
-  const prompt = `أنت مدرس فيزياء خبير. اكتب امتحانًا من 10 أسئلة اختيار من متعدد (4 اختيارات لكل سؤال) عن الموضوع: [اكتب الموضوع هنا].
-أرجع الناتج بصيغة JSON فقط بدون أي كلام إضافي بهذا الشكل بالضبط:
-${AI_QUIZ_TEMPLATE}`;
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-brand-200 bg-brand-50/70 p-4 text-xs leading-6 text-slate-700 dark:border-brand-300/40 dark:bg-brand-50/30">
-        <p className="text-sm font-black text-slate-900">🤖 إنشاء امتحان بالكامل بالذكاء الاصطناعي في ثوانٍ</p>
-        <ol className="mt-2 list-inside list-decimal space-y-1">
-          <li>انسخ «برومبت جاهز» وضعه في ChatGPT أو Gemini مع اسم الموضوع المطلوب.</li>
-          <li>انسخ الـ JSON الذي يرد به النموذج (أو احفظه في ملف .json).</li>
-          <li>الصقه هنا ← يتكوّن الامتحان كاملًا بالتصحيح التلقائي فورًا.</li>
-        </ol>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <CopyButton text={prompt} label="نسخ البرومبت الجاهز" />
-          <CopyButton text={AI_QUIZ_TEMPLATE} label="نسخ قالب JSON فقط" />
-        </div>
-        <details className="mt-3">
-          <summary className="cursor-pointer font-bold text-brand-700">عرض القالب (JSON) — الحقول المسموحة</summary>
-          <pre dir="ltr" className="mt-2 max-h-64 overflow-auto rounded-xl border border-slate-200 bg-white p-3 text-[11px] leading-5 text-slate-700">{AI_QUIZ_TEMPLATE}</pre>
-          <p className="mt-2">
-            الحقول المقبولة: <code dir="ltr">question/text</code> • <code dir="ltr">options/choices</code> (أو option_1..option_6) • <code dir="ltr">correctIndex</code> (0 يبدأ) أو <code dir="ltr">correct: &quot;أ/ب/ج/د&quot;</code> أو نص الإجابة • <code dir="ltr">explanation</code> • <code dir="ltr">points</code>. للنوع الجديد من الملفات يقبل أيضًا مصفوفة أسئلة مباشرة <code dir="ltr">[ ... ]</code>.
-          </p>
-        </details>
-      </div>
-
-      <form action={action} className="space-y-3">
-        <FormMessage state={state} />
-        {quizId ? <input type="hidden" name="quizId" value={quizId} /> : null}
-        {!quizId && (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="الكورس الذي سينشأ فيه الامتحان" name="aiq_course">
-              <Select id="aiq_course" name="courseId" required defaultValue={courseId ?? courses?.[0]?.id}>
-                {(courses ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>{c.title}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="عنوان مؤقت (اختياري – يستخدمه إن لم يكن في الملف)" name="aiq_title">
-              <Input id="aiq_title" name="title" maxLength={150} placeholder="امتحان مولّد بالذكاء الاصطناعي" />
-            </Field>
-          </div>
-        )}
-        <Field label="الصق JSON الامتحان هنا" name="aiq_json" hint="لو الملف كبير: ارفع ملف .json من الأسفل بدلًا من اللصق">
-          <Textarea id="aiq_json" name="json" dir="ltr" className="min-h-52 font-mono text-[11px] leading-5" placeholder={AI_QUIZ_TEMPLATE} />
-        </Field>
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-3">
-          <label className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-600">
-            أو ارفع ملف ‎.json‎ من جهازك:
-            <input type="file" name="jsonFile" accept=".json,application/json" className="text-xs file:me-2 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-brand-700" />
-          </label>
-        </div>
-        <SubmitButton className="btn btn-accent" pendingText="جارٍ التكوين...">
-          <Sparkles className="size-4" /> {quizId ? "إضافة الأسئلة للامتحان" : "تكوين الامتحان الآن"}
-        </SubmitButton>
-      </form>
-    </div>
   );
 }
 

@@ -13,13 +13,10 @@ function readTheme(): Theme {
   return document.documentElement.classList.contains("dark") ? "dark" : "light";
 }
 
-/**
- * Applies the theme to <html>, persists it and notifies every toggle on the page.
- * ⚡ Instant (<10ms): the `dark` class on <html> is flipped synchronously and
- * read back from localStorage, with no transition class and no timers.
- */
+/** Applies the theme to <html> instantly (<10ms), persists it and notifies every toggle on the page. */
 export function applyTheme(theme: Theme) {
   const root = document.documentElement;
+  // Single class switch on <html> – colors flip immediately, zero transition lag.
   root.classList.toggle("dark", theme === "dark");
   root.style.colorScheme = theme;
   try {

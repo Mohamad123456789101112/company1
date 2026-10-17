@@ -221,20 +221,6 @@ export const bulkQuestionsSchema = z.object({
   points: z.coerce.number().int().min(1).max(20).optional(),
 });
 
-/** AI quiz JSON import – accepts pasted text (json) or an uploaded .json file. */
-export const quizJsonSchema = z
-  .object({
-    quizId: z.string().uuid().optional().or(z.literal("")),
-    courseId: z.string().uuid().optional().or(z.literal("")),
-    title: z.string().trim().max(150).optional().or(z.literal("")),
-    json: z.string().trim().max(500_000).optional().or(z.literal("")),
-    jsonFile: z.unknown().optional(),
-  })
-  .refine((d) => (d.json ?? "").length > 0 || (d.jsonFile instanceof File && d.jsonFile.size > 0), {
-    message: "الصق كود JSON أو ارفع ملف .json أولًا",
-  })
-  .refine((d) => Boolean(d.quizId) || Boolean(d.courseId), { message: "حدد الكورس أو الامتحان" });
-
 export const generateCodesSchema = z
   .object({
     scope: z.enum(["course", "unit", "lesson"]),

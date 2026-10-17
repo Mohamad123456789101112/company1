@@ -40,12 +40,14 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ar" dir="rtl"  suppressHydrationWarning>
+    <html lang="ar" dir="rtl" suppressHydrationWarning>
       <head>
-        {/* Applies the saved theme before first paint to avoid a light→dark flash. Light is the default. */}
+        {/* Arabic fonts are self-hosted in /public/fonts and declared in globals.css
+            (@font-face) — no external request, works offline, CSP-tight. */}
+        {/* Applies the saved theme before first paint to avoid a light→dark flash – instant (<10ms) via localStorage + <html class="dark">. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var r=document.documentElement;var t=localStorage.getItem("aj-theme");if(t==="dark"){r.classList.add("dark");r.style.colorScheme="dark";}var z=Number(localStorage.getItem("aj-zoom"));if(z>=70&&z<=150&&z!==100&&window.matchMedia("(min-width: 768px)").matches){if(window.CSS&&CSS.supports&&CSS.supports("zoom","1")){r.style.setProperty("zoom",String(z/100));}else{r.style.fontSize=z+"%";}}}catch(e){}})();`,
+            __html: `(function(){try{var r=document.documentElement;var t=localStorage.getItem("aj-theme");if(t==="dark"){r.classList.add("dark");r.style.colorScheme="dark";}var z=Number(localStorage.getItem("aj-zoom"));if(!(z>=70&&z<=150))z=100;if(z!==100&&window.matchMedia("(min-width: 768px)").matches){if(window.CSS&&CSS.supports&&CSS.supports("zoom","1")){r.style.setProperty("zoom",String(z/100));}else{r.style.fontSize=z+"%";}}}catch(e){}})();`,
           }}
         />
       </head>

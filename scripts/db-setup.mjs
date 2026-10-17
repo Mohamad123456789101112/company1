@@ -37,8 +37,21 @@ try {
   if (mode === "check") {
     console.log(`   ${String(rows[0].v).split(" ").slice(0, 2).join(" ")}`);
   } else {
-    const sql = await readFile(path.join(process.cwd(), "supabase", "schema.sql"), "utf8");
-    await client.query(sql);
+    let sql = await readFile(path.join(process.cwd(), "supabase", "schema.sql"), "utf8");
+    try {
+      await client.query(sql);
+    } catch (e) {
+      // Some local Postgres builds don't ship the pgcrypto extension. Modern
+      // PostgreSQL (13+) has gen_random_uuid() built in, so the extension line
+      // is optional outside Supabase.
+      if (e instanceof Error && /pgcrypto/i.test(e.message)) {
+        console.log("ℹ️ إضافة pgcrypto غير متاحة محليًا – سيتم استخدام gen_random_uuid() المدمج.");
+        sql = sql.replace(/create\s+extension\s+if\s+not\s+exists\s+"?pgcrypto"?\s*;/gi, "");
+        await client.query(sql);
+      } else {
+        throw e;
+      }
+    }
     console.log("✅ تم تنفيذ supabase/schema.sql — كل الجداول والإعدادات وحساب المدير جاهزة.");
     console.log("   بيانات الدخول الافتراضية للمدير موضّحة في docs/SETUP.md — غيّرها فور أول دخول.");
   }

@@ -1,14 +1,14 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { generateToken } from "./security";
-import { platformConfig } from "./config";
+import { secureGoogleAuth } from "./secure-config";
 
 export const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
 
 export function isGoogleConfigured() {
-  return platformConfig.google.enabled;
+  return secureGoogleAuth.configured;
 }
 
 export function googleRedirectUri(appUrl: string) {
@@ -23,7 +23,7 @@ export function createPkcePair() {
 
 export function buildGoogleAuthUrl(opts: { appUrl: string; state: string; challenge: string }) {
   const params = new URLSearchParams({
-    client_id: platformConfig.google.clientId,
+    client_id: secureGoogleAuth.clientId,
     redirect_uri: googleRedirectUri(opts.appUrl),
     response_type: "code",
     scope: "openid email profile",
@@ -51,8 +51,8 @@ export async function exchangeGoogleCode(opts: {
 }): Promise<GoogleProfile | null> {
   const body = new URLSearchParams({
     code: opts.code,
-    client_id: platformConfig.google.clientId,
-    client_secret: platformConfig.google.clientSecret,
+    client_id: secureGoogleAuth.clientId,
+    client_secret: secureGoogleAuth.clientSecret,
     redirect_uri: googleRedirectUri(opts.appUrl),
     grant_type: "authorization_code",
     code_verifier: opts.verifier,

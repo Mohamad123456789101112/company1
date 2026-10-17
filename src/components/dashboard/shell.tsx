@@ -228,7 +228,7 @@ export function DashboardShell({ variant, brand, user, nav, notifications, unrea
       {/* content */}
       <div className={cn("flex min-h-screen flex-col transition-[padding] duration-300", collapsed ? "lg:pr-20" : "lg:pr-72")}>
         <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl dark:bg-[var(--color-surface)]/85">
-          <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6">
+          <div className="mx-auto flex h-16 w-[90%] items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <button type="button" onClick={() => setMobileOpen(true)} className="grid size-10 place-items-center rounded-xl border border-lav-200 text-slate-600 hover:bg-lav-100 lg:hidden" aria-label="فتح القائمة">
                 <Menu className="size-5" />
@@ -312,8 +312,9 @@ export function DashboardShell({ variant, brand, user, nav, notifications, unrea
           </div>
         </header>
 
-        {/* .dash-x → dashboard content is 90% of the screen width */}
-        <main className="dash-x flex-1 py-4 pb-24 sm:py-6 md:py-8">{children}</main>
+        {/* Dashboard content occupies 90% of the available width so tables and
+            charts render with full detail – no crowding, no side-scroll. */}
+        <main className="mx-auto w-[90%] flex-1 py-4 pb-24 sm:py-6 lg:py-8">{children}</main>
       </div>
     </div>
   );

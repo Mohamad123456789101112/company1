@@ -39,7 +39,6 @@ import {
   lessonSchema,
   questionSchema,
   quizSchema,
-  quizJsonSchema,
   standaloneQuizSchema,
   testimonialSchema,
   unitSchema,
@@ -49,7 +48,6 @@ import { audit } from "@/lib/audit";
 import { approvePaymentRequest, rejectPaymentRequest, runAiOnPayment } from "@/lib/payments";
 import { attachUpload, fileIdFromUrl } from "@/lib/uploads";
 import { pingAi, DEFAULT_MODELS } from "@/lib/ai";
-import { extractQuestions, pickField, type RawQuestion } from "@/lib/quiz-json";
 import { notify } from "@/lib/notify";
 import type { ActionState } from "./auth";
 
@@ -178,6 +176,64 @@ export async function deleteUnitAction(fd: FormData) {
   if (!id.success || !courseId.success) return;
   await db.delete(courseUnits).where(and(eq(courseUnits.id, id.data), eq(courseUnits.courseId, courseId.data)));
   revalidateAdmin(`/admin/courses/${courseId.data}`);
+}
+
+/**
+ * Drag & Drop: apply a new order for the course units (chapters).
+ * `unitIds` = the full ordered list of unit ids, comma separated.
+ */
+export async function reorderUnitsAction(fd: FormData): Promise<{ ok: boolean; error?: string }> {
+  await requireStaff();
+  const courseId = uuidSchema.safeParse(fd.get("courseId"));
+  if (!courseId.success) return { ok: false, error: "كورس غير صالح" };
+  const ids = String(fd.get("unitIds") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!ids.length) return { ok: false, error: "لا يوجد ترتيب جديد" };
+  const existing = await db.select({ id: courseUnits.id }).from(courseUnits).where(eq(courseUnits.courseId, courseId.data));
+  const valid = new Set(existing.map((u) => u.id));
+  if (ids.some((id) => !valid.has(id))) return { ok: false, error: "وحدات غير صالحة" };
+  for (const [i, id] of ids.entries()) {
+    await db.update(courseUnits).set({ orderIndex: i }).where(and(eq(courseUnits.id, id), eq(courseUnits.courseId, courseId.data)));
+  }
+  revalidateAdmin(`/admin/courses/${courseId.data}`);
+  return { ok: true };
+}
+
+/**
+ * Drag & Drop: apply a new order for the lessons (also allows moving a lesson
+ * between units). `order` = JSON array of { lessonId, unitId, orderIndex }
+ * covering every lesson of the course after the drop.
+ */
+export async function reorderLessonsAction(fd: FormData): Promise<{ ok: boolean; error?: string }> {
+  await requireStaff();
+  const courseId = uuidSchema.safeParse(fd.get("courseId"));
+  if (!courseId.success) return { ok: false, error: "كورس غير صالح" };
+  type Move = { lessonId: string; unitId: string; orderIndex: number };
+  let moves: Move[] = [];
+  try {
+    moves = JSON.parse(String(fd.get("order") ?? "[]")) as Move[];
+  } catch {
+    return { ok: false, error: "بيانات ترتيب غير صالحة" };
+  }
+  if (!Array.isArray(moves) || !moves.length) return { ok: false, error: "لا يوجد ترتيب جديد" };
+  const unitRows = await db.select({ id: courseUnits.id }).from(courseUnits).where(eq(courseUnits.courseId, courseId.data));
+  const validUnits = new Set(unitRows.map((u) => u.id));
+  const lessonRows = await db.select({ id: lessons.id }).from(lessons).where(eq(lessons.courseId, courseId.data));
+  const validLessons = new Set(lessonRows.map((l) => l.id));
+  for (const m of moves) {
+    if (!m || typeof m !== "object") return { ok: false, error: "بيانات ترتيب غير صالحة" };
+    if (!validLessons.has(m.lessonId) || !validUnits.has(m.unitId)) return { ok: false, error: "درس أو وحدة غير صالحة" };
+  }
+  for (const m of moves) {
+    await db
+      .update(lessons)
+      .set({ unitId: m.unitId, orderIndex: Math.max(0, Math.floor(Number(m.orderIndex) || 0)) })
+      .where(and(eq(lessons.id, m.lessonId), eq(lessons.courseId, courseId.data)));
+  }
+  revalidateAdmin(`/admin/courses/${courseId.data}`);
+  return { ok: true };
 }
 
 /* ───────────────────────── Lessons (with PDF upload) ───────────────────────── */
@@ -471,7 +527,173 @@ export async function updateQuestionAction(_prev: AdminState, fd: FormData): Pro
 }
 
 /**
- * Bulk import. Accepted format (one block per question, blank line between blocks):
+ * "AI Quiz Generator": parse a JSON template (produced by ChatGPT / Gemini)
+ * and build the whole quiz from it in seconds – with full auto-grading.
+ */
+type JsonQuestion = {
+  text?: string;
+  question?: string;
+  options?: string[];
+  choices?: string[];
+  correctIndex?: number;
+  correct?: number | string;
+  answer?: number | string;
+  explanation?: string;
+  explain?: string;
+  points?: number;
+  score?: number;
+};
+
+async function importQuizJson({ quizId, courseId, raw, defaultPoints, staffId }: { quizId: string; courseId: string; raw: string; defaultPoints: number; staffId: string }): Promise<AdminState> {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    return { error: "JSON غير صالح – انسخ القالب الجاهز كما هو واملأ الأسئلة فقط" };
+  }
+
+  let title: string | undefined;
+  let list: JsonQuestion[] = [];
+  if (Array.isArray(payload)) {
+    list = payload as JsonQuestion[];
+  } else if (payload && typeof payload === "object") {
+    const obj = payload as Record<string, unknown>;
+    if (typeof obj.title === "string") title = obj.title.trim().slice(0, 200) || undefined;
+    const q = (obj.questions ?? obj.items ?? obj.quiz) as unknown;
+    if (Array.isArray(q)) list = q as JsonQuestion[];
+  }
+  if (!list.length) return { error: "لا توجد أسئلة داخل JSON – تأكد من وجود مصفوفة questions" };
+
+  const letters = ["أ", "ب", "ج", "د", "هـ", "و", "a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F", "1", "2", "3", "4", "5", "6"];
+  const toIndex = (v: number | string | undefined, options: string[]): number => {
+    if (typeof v === "number" && Number.isFinite(v)) {
+      // accept both 0-based and 1-based indexes
+      if (v >= 0 && v < options.length) return Math.floor(v);
+      if (v >= 1 && v <= options.length) return Math.floor(v) - 1;
+      return -1;
+    }
+    if (typeof v === "string") {
+      const t = v.trim();
+      const byLetter = letters.indexOf(t === "ا" ? "أ" : t);
+      if (byLetter >= 0) return byLetter % 6 < options.length ? byLetter % 6 : -1;
+      const asText = options.findIndex((o) => o.trim() === t);
+      if (asText >= 0) return asText;
+      const n = Number(t);
+      if (Number.isFinite(n)) return toIndex(n, options);
+    }
+    return -1;
+  };
+
+  const rows: Array<{ text: string; options: string[]; correctIndex: number; explanation: string | null; points: number }> = [];
+  const errors: string[] = [];
+  for (const [qi, item] of list.entries()) {
+    const qText = String(item.text ?? item.question ?? "").trim();
+    const options = (item.options ?? item.choices ?? []).map((o) => String(o).trim().slice(0, 300)).filter(Boolean);
+    const correct = toIndex(item.correctIndex ?? item.correct ?? item.answer, options);
+    if (!qText || options.length < 2) {
+      errors.push(`السؤال ${qi + 1}: نص ناقص أو أقل من اختيارين`);
+      continue;
+    }
+    if (correct < 0 || correct >= options.length) {
+      errors.push(`السؤال ${qi + 1}: الإجابة الصحيحة غير محددة (correctIndex)`);
+      continue;
+    }
+    const points = Number(item.points ?? item.score ?? defaultPoints);
+    rows.push({
+      text: qText.slice(0, 2000),
+      options: options.slice(0, 6),
+      correctIndex: correct,
+      explanation: String(item.explanation ?? item.explain ?? "").trim().slice(0, 2000) || null,
+      points: Number.isFinite(points) && points > 0 ? Math.min(20, Math.floor(points)) : defaultPoints,
+    });
+  }
+  if (!rows.length) return { error: errors[0] ?? "لم يتم التعرف على أي سؤال – راجع القالب" };
+
+  if (title) await db.update(quizzes).set({ title }).where(eq(quizzes.id, quizId));
+  const [{ max }] = await db.select({ max: sql<number>`coalesce(max(${questions.orderIndex}), -1)` }).from(questions).where(eq(questions.quizId, quizId));
+  await db.insert(questions).values(rows.map((r, i) => ({ quizId, text: r.text, options: r.options, correctIndex: r.correctIndex, explanation: r.explanation, points: r.points, orderIndex: Number(max) + 1 + i })));
+  await audit("admin.questions_imported", { userId: staffId, targetType: "quiz", targetId: quizId, meta: { count: rows.length, skipped: errors.length, source: "json" } });
+  revalidateAdmin(`/admin/courses/${courseId}/quiz/${quizId}`);
+  return { ok: true, message: `تم توليد الامتحان بالكامل: ${rows.length} سؤال بتصحيح تلقائي${errors.length ? ` – وتخطي ${errors.length}` : ""}` };
+}
+
+/**
+ * AI Quiz Generator – one-step mode:
+ * pick a course, paste the JSON from ChatGPT / Gemini and the WHOLE exam is
+ * created (title, questions, auto-grading) without any manual setup.
+ */
+export async function createQuizFromJsonAction(_prev: AdminState, fd: FormData): Promise<AdminState> {
+  const staff = await requireStaff();
+  const courseId = uuidSchema.safeParse(fd.get("courseId"));
+  if (!courseId.success) return { error: "اختر الكورس أولًا" };
+
+  let raw = String(fd.get("json") ?? "").trim();
+  const file = fd.get("jsonFile");
+  if (file instanceof File && file.size > 0) {
+    if (file.size > 2_500_000) return { error: "الملف كبير جدًا (الحد 2.5 ميجابايت)" };
+    raw = (await file.text()).trim();
+  }
+  if (!raw) return { error: "الصق كود JSON أو ارفع ملف .json أولًا" };
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    return { error: "الملف ليس JSON صالحًا – استخدم القالب الجاهز كما هو" };
+  }
+
+  const [course] = await db.select({ id: courses.id, title: courses.title }).from(courses).where(eq(courses.id, courseId.data)).limit(1);
+  if (!course) return { error: "الكورس غير موجود" };
+
+  const meta = (Array.isArray(payload) ? {} : (payload ?? {})) as Record<string, unknown>;
+  const rawTitle = String(fd.get("title") || meta.title || "").trim();
+  const title = (rawTitle || `امتحان ${course.title} – مولّد بالذكاء الاصطناعي`).slice(0, 150);
+  const duration = Math.max(1, Math.min(300, Math.round(Number(meta.durationMinutes ?? meta.duration ?? 20) || 20)));
+  const pass = Math.max(0, Math.min(100, Math.round(Number(meta.passPercent ?? meta.pass ?? 50) || 50)));
+  const attempts = Math.max(1, Math.min(50, Math.round(Number(meta.maxAttempts ?? meta.attempts ?? 3) || 3)));
+
+  const [created] = await db
+    .insert(quizzes)
+    .values({
+      courseId: course.id,
+      scope: "course",
+      title,
+      durationMinutes: duration,
+      passPercent: pass,
+      maxAttempts: attempts,
+      shuffleQuestions: true,
+      showAnswers: true,
+      isPublished: true,
+    })
+    .returning({ id: quizzes.id });
+
+  const result = await importQuizJson({ quizId: created.id, courseId: course.id, raw, defaultPoints: 1, staffId: staff.id });
+  if (result?.error) {
+    // Nothing useful was parsed → remove the empty exam so the list stays clean.
+    await db.delete(quizzes).where(eq(quizzes.id, created.id));
+    return result;
+  }
+
+  // One bell notification per enrolled student (chunked insert).
+  const enrolled = await db.select({ userId: enrollments.userId }).from(enrollments).where(eq(enrollments.courseId, course.id));
+  const chunk = 500;
+  for (let i = 0; i < enrolled.length; i += chunk) {
+    await db.insert(notifications).values(enrolled.slice(i, i + chunk).map((e) => ({ userId: e.userId, type: "exam" as const, title: `امتحان جديد: ${title}`, body: "تم إنشاء امتحان جديد بالذكاء الاصطناعي – جرّب نفسك!", href: `/quiz/${created.id}` })));
+  }
+  await audit("admin.quiz_ai_created", { userId: staff.id, targetType: "quiz", targetId: created.id, meta: { courseId: course.id } });
+  revalidateAdmin(`/admin/courses/${course.id}`, `/admin/courses/${course.id}/quiz/${created.id}`, "/admin/exams");
+  redirect(`/admin/courses/${course.id}/quiz/${created.id}`);
+}
+
+/**
+ * Bulk import. Two formats are auto-detected:
+ *
+ * A) JSON template (paste from ChatGPT / Gemini – "AI Quiz Generator"):
+ *    { "title": "optional", "questions": [
+ *        { "text": "…", "options": ["…","…"], "correctIndex": 0,
+ *          "explanation": "…", "points": 1 } ] }
+ *
+ * B) Plain text (one block per question, blank line between blocks):
  *   1. نص السؤال
  *   أ) اختيار   /  أ- اختيار / A) option / - option
  *   ب) اختيار *   ← النجمة تحدد الإجابة الصحيحة (أو سطر "الإجابة: ب")
@@ -482,8 +704,13 @@ export async function importQuestionsAction(_prev: AdminState, fd: FormData): Pr
   const parsed = bulkQuestionsSchema.safeParse({ quizId: fd.get("quizId"), text: fd.get("text"), points: str(fd, "points") || "1" });
   if (!parsed.success) return { error: firstError(parsed.error) };
   const { quizId, text } = parsed.data;
-  const [quiz] = await db.select({ courseId: quizzes.courseId }).from(quizzes).where(eq(quizzes.id, quizId)).limit(1);
+  const [quiz] = await db.select({ courseId: quizzes.courseId, title: quizzes.title }).from(quizzes).where(eq(quizzes.id, quizId)).limit(1);
   if (!quiz) return { error: "الامتحان غير موجود" };
+
+  const trimmed = text.trim();
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    return importQuizJson({ quizId, courseId: quiz.courseId, raw: trimmed, defaultPoints: parsed.data.points ?? 1, staffId: staff.id });
+  }
 
   const LETTERS = ["أ", "ب", "ج", "د", "هـ", "و", "a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F", "1", "2", "3", "4", "5", "6"];
   const letterIndex = (l: string) => {
@@ -955,157 +1182,6 @@ export async function deleteTestimonialAction(fd: FormData) {
   await db.delete(testimonials).where(eq(testimonials.id, id.data));
   revalidatePath("/admin/testimonials");
   revalidatePath("/");
-}
-
-/* ───────────────────────── Curriculum drag & drop reorder ───────────────────────── */
-
-/**
- * Saves the new hierarchical order after Drag & Drop:
- * course ← units (chapters) ← lessons. Everything is validated
- * server-side so no lesson/unit from another course can sneak in.
- */
-export async function reorderCurriculumAction(_prev: AdminState, fd: FormData): Promise<AdminState> {
-  const staff = await requireStaff();
-  const courseId = uuidSchema.safeParse(fd.get("courseId"));
-  if (!courseId.success) return { error: "الكورس غير صالح" };
-
-  let unitOrder: string[];
-  let lessonOrder: Record<string, string[]>;
-  try {
-    unitOrder = JSON.parse(str(fd, "units") || "[]") as string[];
-    lessonOrder = JSON.parse(str(fd, "lessons") || "{}") as Record<string, string[]>;
-  } catch {
-    return { error: "بيانات الترتيب غير صالحة" };
-  }
-  if (!Array.isArray(unitOrder) || !unitOrder.every((x) => typeof x === "string") || !unitOrder.length) {
-    return { error: "قائمة الوحدات فارغة أو غير صالحة" };
-  }
-
-  const [course] = await db.select({ id: courses.id }).from(courses).where(eq(courses.id, courseId.data)).limit(1);
-  if (!course) return { error: "الكورس غير موجود" };
-
-  const dbUnits = await db.select({ id: courseUnits.id }).from(courseUnits).where(eq(courseUnits.courseId, courseId.data));
-  const validUnits = new Set(dbUnits.map((u) => u.id));
-  if (unitOrder.length !== dbUnits.length || !unitOrder.every((id) => validUnits.has(id))) {
-    return { error: "بعض الوحدات غير تابعة لهذا الكورس – أعد تحميل الصفحة" };
-  }
-
-  const dbLessons = await db.select({ id: lessons.id, unitId: lessons.unitId }).from(lessons).where(eq(lessons.courseId, courseId.data));
-  const lessonUnit = new Map(dbLessons.map((l) => [l.id, l.unitId]));
-  const seen: string[] = [];
-  for (const [unitId, ids] of Object.entries(lessonOrder)) {
-    if (!validUnits.has(unitId)) return { error: "وحدة غير صالحة في الترتيب" };
-    if (!Array.isArray(ids)) return { error: "ترتيب الدروس غير صالح" };
-    for (const lid of ids) {
-      if (typeof lid !== "string" || !lessonUnit.has(lid) || lessonUnit.get(lid) !== unitId) {
-        return { error: "بعض الدروس لا تنتمي للمكان المحدد – أعد تحميل الصفحة" };
-      }
-      seen.push(lid);
-    }
-  }
-  if (seen.length !== dbLessons.length || new Set(seen).size !== dbLessons.length) {
-    return { error: "عدد الدروس غير مكتمل – أعد تحميل الصفحة" };
-  }
-
-  await db.transaction(async (tx) => {
-    for (let i = 0; i < unitOrder.length; i++) {
-      await tx.update(courseUnits).set({ orderIndex: i }).where(eq(courseUnits.id, unitOrder[i]));
-    }
-    for (const [unitId, ids] of Object.entries(lessonOrder)) {
-      for (let i = 0; i < ids.length; i++) {
-        await tx.update(lessons).set({ orderIndex: i, unitId }).where(eq(lessons.id, ids[i]));
-      }
-    }
-  });
-
-  await audit("admin.curriculum_reordered", { userId: staff.id, targetType: "course", targetId: courseId.data, meta: { units: unitOrder.length, lessons: seen.length } });
-  revalidateAdmin(`/admin/courses/${courseId.data}`, `/courses`);
-  return { ok: true, message: "تم حفظ ترتيب المنهج (الفصول والدروس)" };
-}
-
-/* ───────────────────────── AI quiz import (JSON) ───────────────────────── */
-
-/**
- * AI Quiz Generator: the teacher copies a ready-made JSON template from
- * ChatGPT / Gemini and pastes it here → the exam forms instantly with
- * automatic correction (correctIndex) in seconds.
- * Mode A: quizId  → append questions to an existing exam.
- * Mode B: courseId → create a new exam from the JSON (title/settings included).
- */
-export async function importQuizJsonAction(_prev: AdminState, fd: FormData): Promise<AdminState> {
-  const staff = await requireStaff();
-  const parsed = quizJsonSchema.safeParse({ quizId: fd.get("quizId"), courseId: fd.get("courseId"), title: str(fd, "title"), json: str(fd, "json"), jsonFile: fd.get("jsonFile") });
-  if (!parsed.success) return { error: firstError(parsed.error) };
-  const { quizId, courseId, title } = parsed.data;
-  let json = parsed.data.json ?? "";
-
-  // A picked .json file wins over the textarea (handy for huge AI outputs)
-  const file = fd.get("jsonFile");
-  if (file instanceof File && file.size > 0) {
-    if (file.size > 3_000_000) return { error: "الملف كبير جدًا (الحد 3 ميجابايت)" };
-    json = await file.text();
-  }
-  if (!json.trim()) return { error: "الصق كود JSON أو ارفع ملف .json أولًا" };
-
-  let data: unknown;
-  try {
-    data = JSON.parse(json);
-  } catch {
-    return { error: "الملف ليس JSON صالحًا – تأكد من الأقواس والفواصل، أو استخدم زر «قالب جاهز»" };
-  }
-
-  const { questions: parsedQuestions, errors } = extractQuestions(data);
-  if (!parsedQuestions.length) {
-    return { error: `ما تم التعرف على أي سؤال صالح. ${errors.slice(0, 3).join(" | ")}` };
-  }
-
-  let targetQuizId = quizId ?? "";
-  let quizCourseId = courseId ?? "";
-  let quizTitle = "";
-
-  if (!targetQuizId) {
-    // Mode B – create the exam itself from the JSON
-    if (!quizCourseId) return { error: "حدد الكورس أولًا" };
-    const [course] = await db.select({ id: courses.id }).from(courses).where(eq(courses.id, quizCourseId)).limit(1);
-    if (!course) return { error: "الكورس غير موجود" };
-    const root = (typeof data === "object" && data !== null && !Array.isArray(data) ? (data as RawQuestion) : {}) as RawQuestion;
-    const dur = Number(pickField(root, ["durationMinutes", "duration_minutes", "duration", "المدة"]) ?? 20);
-    const pass = Number(pickField(root, ["passPercent", "pass_percent", "pass", "درجة النجاح"]) ?? 50);
-    const attempts = Number(pickField(root, ["maxAttempts", "max_attempts", "attempts", "المحاولات"]) ?? 3);
-    quizTitle = String(pickField(root, ["title", "exam_title", "name", "العنوان", "الاسم"]) ?? title ?? "").trim().slice(0, 150) || "امتحان مولّد بالذكاء الاصطناعي";
-    const [created] = await db.insert(quizzes).values({
-      courseId: quizCourseId,
-      scope: "course",
-      title: quizTitle,
-      durationMinutes: Number.isFinite(dur) && dur > 0 ? Math.min(300, Math.round(dur)) : 20,
-      passPercent: Number.isFinite(pass) ? Math.max(0, Math.min(100, Math.round(pass))) : 50,
-      maxAttempts: Number.isFinite(attempts) && attempts > 0 ? Math.min(50, Math.round(attempts)) : 3,
-      shuffleQuestions: true,
-      showAnswers: true,
-      isPublished: true,
-    }).returning({ id: quizzes.id });
-    targetQuizId = created.id;
-
-    // Notify enrolled students about the new exam
-    const enrolled = await db.select({ userId: enrollments.userId }).from(enrollments).where(eq(enrollments.courseId, quizCourseId));
-    if (enrolled.length) {
-      const chunk = 500;
-      for (let i = 0; i < enrolled.length; i += chunk) {
-        await db.insert(notifications).values(enrolled.slice(i, i + chunk).map((e) => ({ userId: e.userId, type: "exam" as const, title: `امتحان جديد: ${quizTitle}`, body: "تم إنشاء امتحان جديد بالذكاء الاصطناعي – جرّب نفسك!", href: `/quiz/${created.id}` })));
-      }
-    }
-  } else {
-    const [q] = await db.select({ id: quizzes.id, courseId: quizzes.courseId, title: quizzes.title }).from(quizzes).where(eq(quizzes.id, targetQuizId)).limit(1);
-    if (!q) return { error: "الامتحان غير موجود" };
-    quizCourseId = q.courseId;
-    quizTitle = q.title;
-  }
-
-  const [{ max }] = await db.select({ max: sql<number>`coalesce(max(${questions.orderIndex}), -1)` }).from(questions).where(eq(questions.quizId, targetQuizId));
-  await db.insert(questions).values(parsedQuestions.map((q, i) => ({ quizId: targetQuizId, ...q, orderIndex: Number(max) + 1 + i })));
-  await audit("admin.quiz_ai_imported", { userId: staff.id, targetType: "quiz", targetId: targetQuizId, meta: { added: parsedQuestions.length, skipped: errors.length } });
-  revalidateAdmin(`/admin/courses/${quizCourseId}`, `/admin/courses/${quizCourseId}/quiz/${targetQuizId}`, "/admin/exams", `/quiz/${targetQuizId}`);
-  return { ok: true, message: `تم تكوين «${quizTitle}» في ثوانٍ: ${parsedQuestions.length} سؤال بتصحيح آلي${errors.length ? ` • تم تخطي ${errors.length} سؤال ناقص` : ""}` };
 }
 
 /* ───────────────────────── Messages ───────────────────────── */

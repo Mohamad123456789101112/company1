@@ -39,7 +39,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     { href: "/admin/messages", label: "رسائل التواصل", icon: "messages", badge: unreadCount, section: "النظام" },
     { href: "/admin/audit", label: "سجل الأمان", icon: "audit", section: "النظام" },
     { href: "/admin/settings", label: "إعدادات المنصة", icon: "settings", section: "النظام" },
-    { href: "/admin/security", label: "حالة الحماية والربط", icon: "shield", section: "النظام" },
+    { href: "/admin/setup", label: "الحماية والتشغيل", icon: "setup", section: "النظام" },
   ];
 
   const notifications: ShellNotification[] = latestPending.map((p) => ({
