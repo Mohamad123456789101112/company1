@@ -60,7 +60,7 @@
    - لا طلبات خارجية، تعمل بدون إنترنت، وتحميل أسرع.
    - `font-src 'self' data:` و`style-src 'self'` في CSP بدون استثناءات خارجية.
 2. **تنفيذ SQL من سطر الأوامر:** `npm run db:setup` و`npm run db:check` مع دعم pgcrypto غير المتوفر محليًا.
-3. **وضع معاينة/تجربة بدون قاعدة بيانات:** عند غياب `DATABASE_URL` تعمل المنصة على PGlite مدمج مع نفس `schema.sql` وتُزرع كورسات القناة الرسمية تلقائيًا للتجربة (بيانات مؤقتة). **الإنتاج يجب أن يضبط `DATABASE_URL` على Supabase.**
+3. **وضع تجربة محلي فقط بدون قاعدة بيانات:** عند غياب `DATABASE_URL` تعمل المنصة على PGlite مدمج مع نفس `schema.sql` للتجربة (بيانات مؤقتة). على Vercel يلزم `DATABASE_URL` أو `POSTGRES_URL` من تكامل Supabase؛ التطبيق يرفض قاعدة PGlite المؤقتة لأن الجلسات والبيانات لن تستمر بين استدعاءات الخادم.
 4. **مزامنة السحب والإسقاط** مع بيانات السيرفر بعد الإضافة/التعديل/الحذف.
 5. **إصلاح التكبير الافتراضي** ليصبح 100% حتى تُطابق النسب المطلوبة فعليًا.
 6. ملفات `docs/SETUP.md` و`docs/UPDATE_PLAN.md` كمرجع تشغيل داخل المستودع فقط.
@@ -81,9 +81,9 @@
 ## 8) خطوات النشر النهائية (مرة واحدة)
 
 1. **Supabase:** أنشئ المشروع ثم نفّذ `npm run db:setup` (أو الصق `supabase/schema.sql` مرة واحدة في SQL Editor).
-2. **Vercel:** استورد المستودع وأضف المتغيرات: `DATABASE_URL`, `NEXT_PUBLIC_APP_URL`, `ADMIN_EMAILS`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MEDIA_SIGNING_SECRET`.
+2. **Vercel:** استورد المستودع واضبط `DATABASE_URL` أو فعّل تكامل Supabase ليضيف `POSTGRES_URL`، ثم أضف `NEXT_PUBLIC_APP_URL`, `ADMIN_EMAILS`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MEDIA_SIGNING_SECRET`.
 3. **Google OAuth:** Redirect URI = `https://<domain>/api/auth/google/callback`.
 4. **أول دخول:** `admin@mohamedfawzi.com` / `Admin@12345` ثم غيّر كلمة المرور فورًا.
 5. **المحتوى:** ارفع صور المدرس الحقيقية من «صور الموقع»، واضبط الأسعار وطرق الدفع من الإعدادات.
 
-> ملاحظة: بدون `DATABASE_URL` يعمل الموقع في **وضع تجربة مؤقت** (PGlite) — مناسب للمعاينة فقط، ولا يُستخدم للإنتاج لأن البيانات تُفقد مع إعادة التشغيل.
+> ملاحظة: PGlite متاح للتجربة المحلية فقط. على Vercel يمنع التطبيق البناء إذا لم يوجد `DATABASE_URL` أو `POSTGRES_URL` دائم، بدل نشر نسخة تفقد الحسابات والجلسات.

@@ -58,22 +58,45 @@ export async function exchangeGoogleCode(opts: {
     code_verifier: opts.verifier,
   });
 
-  const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-    cache: "no-store",
-  });
-  if (!tokenRes.ok) return null;
-  const tokens = (await tokenRes.json()) as { access_token?: string };
-  if (!tokens.access_token) return null;
+  try {
+    const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!tokenRes.ok) {
+      console.warn("[google-auth] token exchange rejected", { status: tokenRes.status });
+      return null;
+    }
+    const tokens = (await tokenRes.json()) as { access_token?: unknown };
+    if (typeof tokens.access_token !== "string" || !tokens.access_token) return null;
 
-  const infoRes = await fetch(GOOGLE_USERINFO_URL, {
-    headers: { Authorization: `Bearer ${tokens.access_token}` },
-    cache: "no-store",
-  });
-  if (!infoRes.ok) return null;
-  const profile = (await infoRes.json()) as GoogleProfile;
-  if (!profile.sub || !profile.email) return null;
-  return profile;
+    const infoRes = await fetch(GOOGLE_USERINFO_URL, {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!infoRes.ok) {
+      console.warn("[google-auth] userinfo request rejected", { status: infoRes.status });
+      return null;
+    }
+    const profile = (await infoRes.json()) as Partial<GoogleProfile>;
+    if (typeof profile.sub !== "string" || !profile.sub || typeof profile.email !== "string" || !profile.email) return null;
+    return {
+      sub: profile.sub,
+      email: profile.email,
+      email_verified: profile.email_verified === true,
+      name: typeof profile.name === "string" ? profile.name : undefined,
+      picture: typeof profile.picture === "string" ? profile.picture : undefined,
+    };
+  } catch (error) {
+    const shaped = error as { name?: unknown; code?: unknown };
+    console.error("[google-auth] provider request failed", {
+      name: typeof shaped?.name === "string" ? shaped.name : "UnknownError",
+      ...(typeof shaped?.code === "string" ? { code: shaped.code } : {}),
+    });
+    return null;
+  }
 }

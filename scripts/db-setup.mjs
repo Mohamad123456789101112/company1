@@ -23,10 +23,39 @@ if (!url) {
   process.exit(1);
 }
 
-const isLocal = url.includes("127.0.0.1") || url.includes("localhost");
-const ssl = process.env.DATABASE_SSL === "false" ? false : process.env.DATABASE_SSL === "true" || !isLocal ? { rejectUnauthorized: false } : false;
+function withoutUrlSslOptions(connectionString) {
+  try {
+    const parsed = new URL(connectionString);
+    const sslParameters = new Set([
+      "ssl",
+      "sslmode",
+      "sslcert",
+      "sslkey",
+      "sslrootcert",
+      "sslnegotiation",
+      "uselibpqcompat",
+    ]);
+    for (const key of [...parsed.searchParams.keys()]) {
+      if (sslParameters.has(key.toLowerCase())) parsed.searchParams.delete(key);
+    }
+    return parsed.toString();
+  } catch {
+    return connectionString;
+  }
+}
 
-const client = new pg.Client({ connectionString: url, ssl });
+const isLocal = url.includes("127.0.0.1") || url.includes("localhost");
+const sslCa = process.env.DATABASE_SSL_CA?.replace(/\\n/g, "\n").trim();
+const ssl =
+  process.env.DATABASE_SSL === "false"
+    ? false
+    : process.env.DATABASE_SSL === "true" || !isLocal
+      ? sslCa
+        ? { ca: sslCa, rejectUnauthorized: true }
+        : { rejectUnauthorized: false }
+      : false;
+
+const client = new pg.Client({ connectionString: withoutUrlSslOptions(url), ssl });
 
 const mode = process.argv[2] === "check" ? "check" : "setup";
 

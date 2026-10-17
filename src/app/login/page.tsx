@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 
 const GOOGLE_ERRORS: Record<string, string> = {
   google_not_configured: "تسجيل الدخول عبر Google غير مفعّل بعد. استخدم البريد وكلمة المرور.",
+  google_cancelled: "ألغيت تسجيل الدخول عبر Google.",
   google_failed: "تعذر إتمام تسجيل الدخول عبر Google. حاول مرة أخرى.",
   google_state: "انتهت صلاحية الجلسة الأمنية. حاول مرة أخرى.",
   google_unverified: "بريد Google غير مُوثّق. استخدم بريدًا آخر.",

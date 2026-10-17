@@ -37,7 +37,7 @@ export default async function SetupPage() {
         <h2 className="flex items-center gap-2 text-base font-black text-slate-900"><Rocket className="size-5 text-brand-600" /> خطوات التشغيل (تتم خارج المنصة – للمسؤول فقط)</h2>
         <ol className="mt-4 grid gap-3 sm:grid-cols-3">
           {[
-            { t: "قاعدة البيانات", d: "أنشئ مشروع Supabase وشغّل ملف الـ SQL مرة واحدة من SQL Editor الخاص بك، ثم ضع رابط الاتصال في متغير البيئة DATABASE_URL." },
+            { t: "قاعدة البيانات", d: "أنشئ مشروع Supabase وشغّل ملف SQL مرة واحدة. أضف DATABASE_URL أو فعّل تكامل Supabase في Vercel ليستخدم التطبيق POSTGRES_URL تلقائيًا." },
             { t: "رفع الموقع", d: "ارفع الكود على GitHub واربطه بـ Vercel، وأضف متغيرات البيئة (.env) في إعدادات المشروع." },
             { t: "تسجيل Google", d: "أنشئ OAuth Client في Google Cloud وضع المفاتيح في GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET." },
           ].map((s, i) => (

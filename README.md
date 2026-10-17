@@ -30,7 +30,7 @@
 - **إحصائيات دقيقة:** إجمالي الطلاب، المبيعات، تفعيلات الأكواد، أكثر الكورسات مشاهدة واشتراكًا + رسوم بيانية للإيرادات والتسجيلات.
 - **لوحة الطالب التفاعلية:** نسبة التقدم، متوسط وتطور درجات الامتحانات، النشاط الأسبوعي، وأوسمة التميز.
 - **عزل الإعدادات الحساسة:** Google Auth وأكواد SQL الخاصة بـ Supabase في Config محمي (`src/lib/secure-config.ts` + `.env`) – **ممنوع ظهورها أو فتحها داخل لوحة التحكم نهائيًا**.
-- **وضع العرض التجريبي:** بدون `DATABASE_URL` يعمل الموقع كاملًا على قاعدة بيانات مدمجة (PGlite) – اضبط `DATABASE_URL` للانتقال لـ Supabase مباشرة.
+- **وضع التجربة المحلي:** عند التشغيل محليًا فقط، يمكن ترك `DATABASE_URL` فارغًا لاستخدام PGlite. على Vercel يجب الاتصال بقاعدة PostgreSQL دائمة عبر `DATABASE_URL` أو تكامل Supabase الذي يوفّر `POSTGRES_URL`؛ يمنع التطبيق نشر قاعدة مؤقتة تفقد الجلسات والبيانات.
 - **خطوط عربية مستضافة محليًا** (Almarai / Tajawal / Baloo Bhaijaan 2) داخل `public/fonts` — بدون أي طلب لـ Google Fonts، أسرع وأكثر خصوصية.
 - **تكبير افتراضي 100%:** حتى تظهر نسب 80% (تابلت) و90% (الدخول واللوحات) كما هي بالضبط، مع بقاء زر التكبير اليدوي متاحًا.
 - **تنفيذ SQL من سطر الأوامر فقط:** `npm run db:setup` / `npm run db:check` — ولا يظهر الملف أو نتائجه داخل لوحة التحكم.
@@ -65,7 +65,7 @@
 ### 2) Vercel
 1. ارفع المشروع على GitHub ثم استورده في [vercel.com](https://vercel.com).
 2. أضف متغيرات البيئة (انظر [`.env.example`](./.env.example)):
-   - `DATABASE_URL` – رابط Supabase
+   - `DATABASE_URL` – رابط Supabase (أو فعّل تكامل Supabase في Vercel؛ التطبيق يستخدم `POSTGRES_URL` الذي يوفّره التكامل تلقائيًا)
    - `NEXT_PUBLIC_APP_URL` – رابط موقعك `https://...`
    - `ADMIN_EMAILS` – بريدك (يُرقّى لمدير تلقائيًا)
    - `GOOGLE_CLIENT_ID` و `GOOGLE_CLIENT_SECRET` (الخطوة 3)
@@ -74,9 +74,9 @@
 3. **Deploy**.
 
 ### 3) Google Login
-1. [Google Cloud Console](https://console.cloud.google.com) → **APIs & Services → Credentials → Create OAuth client ID** (Web application).
-2. أضف في **Authorized redirect URIs**: `https://your-domain.vercel.app/api/auth/google/callback`
-3. ضع Client ID / Secret في متغيرات Vercel وأعد النشر.
+1. في [Google Cloud Console](https://console.cloud.google.com)، أنشئ OAuth Client من نوع **Web application** وأكمل شاشة الموافقة.
+2. أضف callback مطابقًا للدومين المستخدم، مثل `https://mrmohamedfawzi.vercel.app/api/auth/google/callback`.
+3. خزّن `GOOGLE_CLIENT_ID` و`GOOGLE_CLIENT_SECRET` كمتغيرين سريين في Vercel (Production وPreview)، ثم أعد النشر. لا تستخدم `NEXT_PUBLIC_` ولا تشارك الـsecret.
 
 > حساب المدير الافتراضي من ملف SQL: `admin@mohamedfawzi.com` / `Admin@12345` — **غيّر كلمة المرور فور أول دخول** (سيُطلب منك ذلك).
 
@@ -90,7 +90,7 @@ npm run dev
 ```
 
 - **مع `DATABASE_URL`:** قاعدة بيانات حقيقية (Supabase) — هذا هو وضع الإنتاج.
-- **بدون `DATABASE_URL`:** وضع تجربة تلقائي على PGlite بنفس السكيما + كورسات القناة الرسمية للعرض (البيانات مؤقتة وتُفقد مع إعادة التشغيل).
+- **بدون `DATABASE_URL` محليًا:** وضع تجربة على PGlite بنفس السكيما + كورسات القناة الرسمية للعرض (البيانات مؤقتة). على Vercel، غياب `DATABASE_URL` و`POSTGRES_URL` يوقف النشر بدل تشغيل قاعدة مؤقتة.
 
 سجّل دخول المدير (`admin@mohamedfawzi.com` / `Admin@12345`) → غيّر كلمة المرور → اضبط الإعدادات والأسعار → أضف المحتوى.
 

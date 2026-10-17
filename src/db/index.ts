@@ -8,7 +8,47 @@ import * as schema from "./schema";
 
 export type Db = NodePgDatabase<typeof schema>;
 
-const databaseUrl = process.env.DATABASE_URL;
+// Vercel's Supabase integration exposes POSTGRES_URL; self-hosted/local setups may use DATABASE_URL.
+const databaseUrl = process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim();
+
+/**
+ * pg parses SSL query parameters in connectionString after merging Pool options.
+ * On current pg versions, sslmode=require becomes strict certificate validation,
+ * which overrides our explicit SSL policy and rejects Supabase's self-signed chain.
+ * The connection's TLS policy is set below, so remove URL-level SSL options first.
+ */
+function withoutUrlSslOptions(connectionString: string): string {
+  try {
+    const url = new URL(connectionString);
+    const sslParameters = new Set([
+      "ssl",
+      "sslmode",
+      "sslcert",
+      "sslkey",
+      "sslrootcert",
+      "sslnegotiation",
+      "uselibpqcompat",
+    ]);
+    for (const key of [...url.searchParams.keys()]) {
+      if (sslParameters.has(key.toLowerCase())) url.searchParams.delete(key);
+    }
+    return url.toString();
+  } catch {
+    // Let pg report malformed/non-URL connection strings through the normal path.
+    return connectionString;
+  }
+}
+
+// Vercel functions are ephemeral: an in-memory PGlite database loses users and
+// sessions between invocations, which breaks registration and dashboard auth.
+// Fail the build/runtime clearly instead of silently shipping a non-persistent DB.
+if (process.env.VERCEL && !databaseUrl) {
+  throw new Error(
+    "Missing persistent database configuration: set DATABASE_URL or connect the Supabase integration so POSTGRES_URL is available. PGlite is local-demo only.",
+  );
+}
+
+export const databaseMode = databaseUrl ? "postgres" : "pglite";
 
 const globalForDb = globalThis as typeof globalThis & {
   __arenaNextJsPostgresqlPool?: Pool;
@@ -20,23 +60,27 @@ const isLocal =
   (databaseUrl.includes("127.0.0.1") || databaseUrl.includes("localhost"));
 
 /**
- * Supabase / managed Postgres requires TLS. Local Postgres does not.
- * You can force the behaviour with DATABASE_SSL=true|false.
+ * Managed Postgres uses TLS. Without a CA, retain the existing provider-compatible
+ * encrypted connection behavior; setting DATABASE_SSL_CA enables certificate
+ * chain validation. DATABASE_SSL=true|false can force TLS on/off.
  */
+const sslCa = process.env.DATABASE_SSL_CA?.replace(/\\n/g, "\n").trim();
 const sslSetting =
   process.env.DATABASE_SSL === "false"
-    ? undefined
+    ? false
     : process.env.DATABASE_SSL === "true" || !isLocal
-      ? { rejectUnauthorized: false }
-      : undefined;
+      ? sslCa
+        ? { ca: sslCa, rejectUnauthorized: true }
+        : { rejectUnauthorized: false }
+      : false;
 
 function createDb(): { db: Db; ready: Promise<void>; pool?: Pool } {
-  /* ── Production / real database: Supabase or any Postgres via DATABASE_URL ── */
+  /* ── Production / real database: Supabase or any Postgres ── */
   if (databaseUrl) {
     const pool =
       globalForDb.__arenaNextJsPostgresqlPool ??
       new Pool({
-        connectionString: databaseUrl,
+        connectionString: withoutUrlSslOptions(databaseUrl),
         ssl: sslSetting,
         // Serverless friendly limits (Vercel + Supabase pooler)
         max: Number(process.env.DATABASE_POOL_MAX ?? 5),
@@ -50,9 +94,8 @@ function createDb(): { db: Db; ready: Promise<void>; pool?: Pool } {
     return { db: drizzlePg(pool, { schema }), ready: Promise.resolve(), pool };
   }
 
-  /* ── Demo / preview mode: embedded Postgres (PGlite) – no external DB needed ──
-     Set DATABASE_URL (Supabase Session pooler) in .env / Vercel to switch to
-     the real production database. This branch never runs when it is set.      */
+  /* ── Local demo mode only: embedded Postgres (PGlite) ──
+     Vercel is rejected above when no persistent Postgres URL is configured. */
   if (!globalForDb.__arenaPglite) {
     const client = new PGlite();
     const db = drizzlePglite(client, { schema }) as unknown as Db;
@@ -74,6 +117,6 @@ function createDb(): { db: Db; ready: Promise<void>; pool?: Pool } {
 const { db: _db, ready: _dbReady, pool: _pool } = createDb();
 
 export const db = _db;
-/** Resolves once the embedded demo database has finished bootstrapping (no-op with DATABASE_URL). */
+/** Resolves once the local embedded demo database has bootstrapped (no-op with Postgres). */
 export const dbReady = _dbReady;
 export const pool = _pool;

@@ -28,20 +28,28 @@ npm run db:check               # يتأكد من الاتصال
 
 1. ارفع المشروع على GitHub ثم **vercel.com → New Project** واستورده.
 2. أضف متغيرات البيئة:
-   `DATABASE_URL`, `NEXT_PUBLIC_APP_URL`, `ADMIN_EMAILS`,
-   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MEDIA_SIGNING_SECRET`.
+   `DATABASE_URL` (أو فعّل تكامل Supabase في Vercel ليضيف `POSTGRES_URL` تلقائيًا),
+   `NEXT_PUBLIC_APP_URL`, `ADMIN_EMAILS`, `GOOGLE_CLIENT_ID`,
+   `GOOGLE_CLIENT_SECRET`, `MEDIA_SIGNING_SECRET`.
 3. اضغط **Deploy**.
 
-> ⚠️ إذا لم تضبط `DATABASE_URL` يعمل الموقع في **وضع تجربة مؤقت (PGlite)**
-> بالبيانات الافتراضية للعرض فقط — البيانات تُفقد مع كل إعادة تشغيل.
-> للإنتاج الحقيقي يجب ضبط `DATABASE_URL`.
+> ⚠️ PGlite للتجربة المحلية فقط. على Vercel يلزم اتصال PostgreSQL دائم عبر
+> `DATABASE_URL` أو `POSTGRES_URL`؛ إذا غاب الاثنان يوقف التطبيق البناء بدلًا من
+> تشغيل قاعدة مؤقتة تفقد الحسابات والجلسات بين استدعاءات الخادم.
+>
+> الاتصالات البعيدة تستخدم TLS. للتحقق من هوية شهادة الخادم، أضف `DATABASE_SSL_CA`
+> إلى Vercel محتويًا شهادة CA بصيغة PEM؛ من دونها يبقى الاتصال مشفرًا بوضع التوافق
+> الذي لا يتحقق من سلسلة الشهادة.
 
 ## 3) تسجيل الدخول عبر Google
 
-1. [Google Cloud Console](https://console.cloud.google.com) → **APIs & Services → Credentials → Create OAuth client ID** (Web application).
-2. **Authorized redirect URIs**:
-   `https://your-domain.vercel.app/api/auth/google/callback`
-3. ضع Client ID / Secret في Vercel ثم أعد النشر.
+1. في [Google Cloud Console](https://console.cloud.google.com)، أكمل إعداد **OAuth consent screen**، ثم أنشئ **OAuth Client ID → Web application**.
+2. أضف عنوان callback مطابقًا تمامًا للدومين المستخدم. الدومين الأساسي الحالي:
+   `https://mrmohamedfawzi.vercel.app/api/auth/google/callback`
+   وللاختبار على معاينة الفرع أضف أيضًا:
+   `https://company1-git-arena-35d5a4-860d2b-mohamadsalahkamal683s-projects.vercel.app/api/auth/google/callback`
+3. أضف `GOOGLE_CLIENT_ID` و`GOOGLE_CLIENT_SECRET` في Vercel كمتغيرين سريين لبيئتي **Production** و**Preview**، أو في `.env.local` محليًا. لا تضف بادئة `NEXT_PUBLIC_` ولا ترسل الـsecret في المحادثة.
+4. إذا كانت شاشة الموافقة في وضع **Testing**، أضف بريد Google الذي سيختبر الدخول ضمن **Test users**، ثم أعد نشر Vercel.
 
 ## 4) أين يعيش كل شيء؟
 
@@ -56,7 +64,7 @@ npm run db:check               # يتأكد من الاتصال
 
 ## 5) التحقق السريع بعد النشر
 
-- `/api/health` يجب أن يعيد `{"ok":true}`.
+- `/api/health` يجب أن يعيد `{"ok":true,"database":"postgres","schema":"ready"}`؛ إذا ظهرت `503` فافحص اتصال PostgreSQL أو وجود الجداول الأساسية.
 - جرّب تسجيل الدخول بحساب المدير وغيّر كلمة المرور.
 - من **الإدارة → صور الموقع** ارفع صور المدرس الحقيقية.
 - من **الإدارة → الكورسات** تأكد من ظهور الفصول والدروس وجرّب السحب والإسقاط.

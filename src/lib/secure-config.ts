@@ -23,20 +23,20 @@ import "server-only";
 /** Google Auth (OAuth 2.0 + PKCE). */
 export const secureGoogleAuth = {
   get clientId(): string {
-    return process.env.GOOGLE_CLIENT_ID ?? "";
+    return process.env.GOOGLE_CLIENT_ID?.trim() ?? "";
   },
   get clientSecret(): string {
-    return process.env.GOOGLE_CLIENT_SECRET ?? "";
+    return process.env.GOOGLE_CLIENT_SECRET?.trim() ?? "";
   },
   get configured(): boolean {
-    return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+    return Boolean(process.env.GOOGLE_CLIENT_ID?.trim() && process.env.GOOGLE_CLIENT_SECRET?.trim());
   },
 } as const;
 
 /** Supabase / Postgres connection + SQL bootstrap file location. */
 export const secureDatabase = {
   get url(): string {
-    return process.env.DATABASE_URL ?? "";
+    return process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim() || "";
   },
   /**
    * مسار ملف أكواد الـ SQL Editor الخاص بـ Supabase. يُقرأ من السيرفر فقط
@@ -46,7 +46,7 @@ export const secureDatabase = {
     return process.env.SUPABASE_SQL_FILE ?? "supabase/schema.sql";
   },
   get configured(): boolean {
-    return Boolean(process.env.DATABASE_URL);
+    return Boolean(process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim());
   },
 } as const;
 

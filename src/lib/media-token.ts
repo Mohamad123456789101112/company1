@@ -20,7 +20,7 @@ export type MediaPayload = {
 };
 
 function secret(): string {
-  const s = process.env.MEDIA_SIGNING_SECRET || process.env.AUTH_SECRET || process.env.DATABASE_URL;
+  const s = process.env.MEDIA_SIGNING_SECRET || process.env.AUTH_SECRET || process.env.DATABASE_URL || process.env.POSTGRES_URL;
   if (!s) throw new Error("MEDIA_SIGNING_SECRET is required");
   return s;
 }
