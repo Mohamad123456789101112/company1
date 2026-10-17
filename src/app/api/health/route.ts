@@ -3,18 +3,42 @@ import { sql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
-function errorCode(error: unknown): string | undefined {
-  let current: unknown = error;
-  for (let depth = 0; depth < 4; depth += 1) {
-    if (!current || typeof current !== "object") return undefined;
-    const shaped = current as { code?: unknown; cause?: unknown };
-    if (typeof shaped.code === "string") return shaped.code;
-    current = shaped.cause;
+type ErrorDetails = {
+  name: string;
+  code?: string;
+  message: string;
+};
+
+function errorDetails(error: unknown): ErrorDetails {
+  const queue: unknown[] = [error];
+  const visited = new Set<object>();
+  let name = "UnknownError";
+  let code: string | undefined;
+  let message = "";
+
+  while (queue.length > 0 && visited.size < 12) {
+    const current = queue.shift();
+    if (!current || typeof current !== "object" || visited.has(current)) continue;
+    visited.add(current);
+
+    const shaped = current as {
+      name?: unknown;
+      code?: unknown;
+      message?: unknown;
+      cause?: unknown;
+      errors?: unknown;
+    };
+    if (visited.size === 1 && typeof shaped.name === "string") name = shaped.name;
+    if (!code && typeof shaped.code === "string") code = shaped.code;
+    if (!message && typeof shaped.message === "string") message = shaped.message;
+    if (shaped.cause) queue.push(shaped.cause);
+    if (Array.isArray(shaped.errors)) queue.push(...shaped.errors);
   }
-  return undefined;
+
+  return { name, code, message };
 }
 
-function safeIssue(code: string | undefined) {
+function safeIssue({ code, message, name }: ErrorDetails) {
   if (code === "28P01" || code === "28000") return "credentials";
   if (code === "3D000") return "database";
   if (code === "42P01" || code === "42703") return "schema";
@@ -22,14 +46,29 @@ function safeIssue(code: string | undefined) {
   if (code && /^(ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENETUNREACH|EHOSTUNREACH)$/.test(code)) {
     return "network";
   }
-  return "query";
+
+  const text = message.toLowerCase();
+  if (/password|sasl|authentication|28p01/.test(text)) return "credentials";
+  if (/enotfound|eai_again|econn|timed? ?out|network|no route to host|could not connect/.test(text)) return "network";
+  if (/ssl|tls|certificate/.test(text)) return "tls";
+  if (/invalid url|connection string|uri malformed/.test(text) || name === "TypeError") return "configuration";
+  return name === "AggregateError" ? "network" : "query";
 }
 
 function unavailable(stage: "connection" | "schema", error: unknown) {
-  const code = errorCode(error);
-  console.error("[health] database probe failed", { stage, code });
+  const details = errorDetails(error);
+  const issue = safeIssue(details);
+  const publicCode = details.code && /^[A-Za-z0-9_]{2,32}$/.test(details.code) ? details.code : undefined;
+  console.error("[health] database probe failed", { stage, issue, name: details.name, code: publicCode });
   return Response.json(
-    { ok: false, database: databaseMode, stage, issue: safeIssue(code) },
+    {
+      ok: false,
+      database: databaseMode,
+      stage,
+      issue,
+      errorName: details.name,
+      ...(publicCode ? { errorCode: publicCode } : {}),
+    },
     { status: 503, headers: { "Cache-Control": "no-store" } },
   );
 }
