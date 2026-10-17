@@ -17,13 +17,16 @@ export const DEFAULT_TESTIMONIALS = [
   { name: "كريم مصطفى", grade: "third_secondary", role: "طالب – 3 ثانوي", text: "المراجعات النهائية والأسئلة على نظام الامتحان الجديد كانت أكتر حاجة فرقت معايا قبل الامتحان.", stars: 5, avatarUrl: "/images/avatars/student-6.jpg", orderIndex: 5 },
 ] as const;
 
-/** Inserts the defaults when the table is empty. Safe to call on every request (cheap count). */
-export async function ensureDefaultTestimonials() {
+/** Inserts the defaults when the table is empty. Safe to call on every request (cheap count).
+ *  Returns true when the table is reachable and has rows (seeded or already there). */
+export async function ensureDefaultTestimonials(): Promise<boolean> {
   try {
     const [{ c }] = await db.select({ c: count() }).from(testimonials);
-    if (Number(c) > 0) return;
+    if (Number(c) > 0) return true;
     await db.insert(testimonials).values(DEFAULT_TESTIMONIALS.map((t) => ({ ...t, isPublished: true })));
+    return true;
   } catch {
     /* table may not exist yet during first bootstrap */
+    return false;
   }
 }

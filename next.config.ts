@@ -42,6 +42,11 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Keep the embedded demo database (WASM Postgres) out of the server bundle.
   serverExternalPackages: ["@electric-sql/pglite"],
+  // Always ship the SQL bootstrap file with the server bundle — the embedded
+  // demo database reads it at runtime (and it is NOT auto-traced on Vercel).
+  outputFileTracingIncludes: {
+    "/**": ["./supabase/schema.sql"],
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
