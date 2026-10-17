@@ -1,6 +1,6 @@
 import "server-only";
 import { count } from "drizzle-orm";
-import { db } from "@/db";
+import { db, dbReady } from "@/db";
 import { testimonials } from "@/db/schema";
 
 /**
@@ -21,6 +21,7 @@ export const DEFAULT_TESTIMONIALS = [
  *  Returns true when the table is reachable and has rows (seeded or already there). */
 export async function ensureDefaultTestimonials(): Promise<boolean> {
   try {
+    await dbReady;
     const [{ c }] = await db.select({ c: count() }).from(testimonials);
     if (Number(c) > 0) return true;
     await db.insert(testimonials).values(DEFAULT_TESTIMONIALS.map((t) => ({ ...t, isPublished: true })));

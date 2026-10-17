@@ -38,8 +38,10 @@ export async function AuthShell({ title, subtitle, children }: { title: string; 
           </div>
 
           {/* teacher photo (bottom) */}
-          <div className="absolute inset-x-0 bottom-0 flex h-[62%] items-end justify-center sm:h-[60%] lg:h-[58%]">
-            <Image src={s.img_auth || "/images/teacher-cut.webp"} alt={s.teacher_name} width={1000} height={1116} priority sizes="(min-width: 1024px) 45vw, 100vw" unoptimized={s.img_auth.startsWith("/api/")} className="h-full w-auto max-w-none object-contain object-bottom drop-shadow-[0_25px_35px_rgba(0,0,0,0.45)]" />
+          <div className="absolute inset-x-0 bottom-0 flex h-[62%] items-end justify-center px-6 sm:h-[60%] lg:h-[58%]">
+            <div className="relative h-full w-[78%] max-w-sm overflow-hidden rounded-t-[2.25rem] border-4 border-b-0 border-white/75 shadow-2xl">
+              <Image src={s.img_auth || "/images/teacher-about.jpg"} alt={s.teacher_name} width={928} height={1152} priority sizes="(min-width: 1024px) 45vw, 100vw" unoptimized={s.img_auth.startsWith("/api/")} className="h-full w-full object-cover object-top" />
+            </div>
           </div>
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-brand-900/60 to-transparent" />
           <div className="absolute bottom-4 right-6 z-20 hidden items-center gap-2 lg:flex">
