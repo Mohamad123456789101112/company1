@@ -3,7 +3,7 @@ import { and, count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 import { Search } from "lucide-react";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { requireStaff } from "@/lib/auth";
+import { requireStaff, roleLabel } from "@/lib/auth";
 import { Badge, Input, PageHeader, Select } from "@/components/ui";
 import { GRADES, GRADE_KEYS, formatDate, formatMoney, gradeLabel, isGrade } from "@/lib/utils";
 
@@ -63,7 +63,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
                 <td><Badge tone="brand">{gradeLabel(u.grade)}</Badge></td>
                 <td className="font-bold text-sakr-600">{formatMoney(u.walletBalance)}</td>
                 <td className="space-x-1 space-x-reverse">
-                  {u.role !== "student" && <Badge tone="success">{u.role === "admin" ? "مدير" : "مساعد"}</Badge>}
+                  {u.role !== "student" && <Badge tone="success">{roleLabel(u.role)}</Badge>}
                   {u.isBanned ? <Badge tone="danger">محظور</Badge> : !u.isActive ? <Badge tone="warning">موقوف</Badge> : <Badge tone="neutral">نشط</Badge>}
                   {u.lockedUntil && u.lockedUntil > new Date() && <Badge tone="warning">مقفول مؤقتًا</Badge>}
                 </td>

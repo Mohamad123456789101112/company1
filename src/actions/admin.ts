@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   activationCodes,
@@ -15,14 +15,17 @@ import {
   lessons,
   notifications,
   paymentRequests,
+  platformSettings,
   questions,
   quizzes,
   sessions,
-  settings,
+  supportSettings,
   testimonials,
   users,
 } from "@/db/schema";
-import { hashPassword, requireAdmin, requireStaff } from "@/lib/auth";
+import { hashPassword, isSuperAdmin, requireAdmin, requireStaff, requireSuperAdmin, requireTeacherAdmin } from "@/lib/auth";
+import { isHexColor } from "@/lib/theme";
+import { ANIMATION_PRESETS } from "@/lib/animation";
 import { generateActivationCode } from "@/lib/security";
 import { extractYouTubeId, parseLocalDateTime, slugify } from "@/lib/utils";
 import { DEFAULT_SETTINGS, getSettings, type SettingsKey } from "@/lib/settings";
@@ -149,7 +152,7 @@ export async function updateCourseAction(_prev: AdminState, fd: FormData): Promi
 }
 
 export async function deleteCourseAction(fd: FormData) {
-  const admin = await requireAdmin();
+  const admin = await requireStaff();
   const id = uuidSchema.safeParse(fd.get("courseId"));
   if (!id.success) return;
   await db.delete(courses).where(eq(courses.id, id.data));
@@ -786,7 +789,7 @@ export async function deleteQuestionAction(fd: FormData) {
 /* ───────────────────────── Center codes ───────────────────────── */
 
 export async function generateCodesAction(_prev: AdminState, fd: FormData): Promise<AdminState> {
-  const admin = await requireAdmin();
+  const admin = await requireTeacherAdmin();
   const parsed = generateCodesSchema.safeParse({
     scope: fd.get("scope"),
     courseId: str(fd, "courseId"),
@@ -839,7 +842,7 @@ export async function generateCodesAction(_prev: AdminState, fd: FormData): Prom
 }
 
 export async function deleteCodeAction(fd: FormData) {
-  await requireAdmin();
+  await requireTeacherAdmin();
   const id = uuidSchema.safeParse(fd.get("codeId"));
   if (!id.success) return;
   await db.delete(activationCodes).where(and(eq(activationCodes.id, id.data), eq(activationCodes.isUsed, false)));
@@ -889,7 +892,7 @@ export async function updateAiSettingsAction(_prev: AdminState, fd: FormData): P
   const d = parsed.data;
   const now = new Date();
   const upsert = async (key: SettingsKey, value: string) =>
-    db.insert(settings).values({ key, value, updatedAt: now }).onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: now } });
+    db.insert(platformSettings).values({ key, value, updatedAt: now }).onConflictDoUpdate({ target: platformSettings.key, set: { value, updatedAt: now } });
   await upsert("ai_provider", d.ai_provider);
   await upsert("ai_model", d.ai_model || "");
   await upsert("ai_auto_approve", d.ai_auto_approve ? "true" : "false");
@@ -911,7 +914,7 @@ export async function updateBunnySettingsAction(_prev: AdminState, fd: FormData)
   if (host && !/^[a-z0-9.-]+$/i.test(host)) return { error: "اسم مضيف CDN غير صالح (مثال: vz-xxxx.b-cdn.net)" };
   const now = new Date();
   const upsert = async (key: SettingsKey, value: string) =>
-    db.insert(settings).values({ key, value, updatedAt: now }).onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: now } });
+    db.insert(platformSettings).values({ key, value, updatedAt: now }).onConflictDoUpdate({ target: platformSettings.key, set: { value, updatedAt: now } });
   await upsert("bunny_library_id", libraryId);
   await upsert("bunny_cdn_hostname", host);
   if (apiKey === "clear") await upsert("bunny_api_key", "");
@@ -952,7 +955,8 @@ export async function toggleBanAction(fd: FormData) {
   const id = uuidSchema.safeParse(fd.get("userId"));
   if (!id.success || id.data === staff.id) return;
   const [u] = await db.select({ isBanned: users.isBanned, role: users.role }).from(users).where(eq(users.id, id.data)).limit(1);
-  if (!u || (u.role === "admin" && staff.role !== "admin")) return;
+  if (!u) return;
+  if ((u.role === "super_admin" || u.role === "admin") && !isSuperAdmin(staff)) return;
   await db
     .update(users)
     .set({ isBanned: !u.isBanned, banReason: !u.isBanned ? str(fd, "reason").slice(0, 200) || null : null, updatedAt: new Date() })
@@ -976,9 +980,12 @@ export async function toggleActiveAction(fd: FormData) {
 }
 
 export async function adminResetPasswordAction(_prev: AdminState, fd: FormData): Promise<AdminState> {
-  const admin = await requireAdmin();
+  const admin = await requireStaff();
   const parsed = adminResetPasswordSchema.safeParse({ userId: fd.get("userId"), newPassword: fd.get("newPassword") });
   if (!parsed.success) return { error: firstError(parsed.error) };
+  const [target] = await db.select({ role: users.role }).from(users).where(eq(users.id, parsed.data.userId)).limit(1);
+  if (!target) return { error: "الحساب غير موجود" };
+  if (target.role !== "student" && !isSuperAdmin(admin)) return { error: "غير مصرح: حسابات الإدارة يتعامل معها مالك المنصة فقط" };
   const hash = await hashPassword(parsed.data.newPassword);
   await db.update(users).set({ passwordHash: hash, mustChangePassword: true, failedLoginAttempts: 0, lockedUntil: null, updatedAt: new Date() }).where(eq(users.id, parsed.data.userId));
   await db.delete(sessions).where(eq(sessions.userId, parsed.data.userId));
@@ -987,12 +994,20 @@ export async function adminResetPasswordAction(_prev: AdminState, fd: FormData):
 }
 
 export async function setRoleAction(fd: FormData) {
-  const admin = await requireAdmin();
+  const admin = await requireSuperAdmin();
   const id = uuidSchema.safeParse(fd.get("userId"));
   const role = fd.get("role");
   if (!id.success || id.data === admin.id) return;
-  if (role !== "student" && role !== "assistant" && role !== "admin") return;
-  await db.update(users).set({ role, updatedAt: new Date() }).where(eq(users.id, id.data));
+  const normalized = role === "admin" ? "super_admin" : role === "assistant" ? "teacher_admin" : role;
+  if (normalized !== "student" && normalized !== "teacher_admin" && normalized !== "super_admin") return;
+  const [target] = await db.select({ role: users.role }).from(users).where(eq(users.id, id.data)).limit(1);
+  if (!target) return;
+  if ((target.role === "super_admin" || target.role === "admin") && normalized !== "super_admin") {
+    const owners = await db.select({ id: users.id }).from(users).where(eq(users.role, "super_admin")).limit(2);
+    const legacyOwners = owners.length ? [] : await db.select({ id: users.id }).from(users).where(eq(users.role, "admin")).limit(2);
+    if (owners.length + legacyOwners.length <= 1) return;
+  }
+  await db.update(users).set({ role: normalized, updatedAt: new Date() }).where(eq(users.id, id.data));
   await audit("admin.role_changed", { userId: admin.id, targetType: "user", targetId: id.data, meta: { role } });
   revalidatePath(`/admin/students/${id.data}`);
 }
@@ -1040,10 +1055,17 @@ export async function logoutUserEverywhereAction(fd: FormData) {
 }
 
 export async function deleteStudentAction(fd: FormData) {
-  const admin = await requireAdmin();
+  const admin = await requireStaff();
   const id = uuidSchema.safeParse(fd.get("userId"));
   if (!id.success || id.data === admin.id) return;
-  await db.delete(users).where(and(eq(users.id, id.data), ne(users.role, "admin")));
+  const [target] = await db.select({ role: users.role }).from(users).where(eq(users.id, id.data)).limit(1);
+  if (!target) return;
+  if (target.role !== "student" && !isSuperAdmin(admin)) return;
+  if (target.role === "super_admin" || target.role === "admin") {
+    const owners = await db.select({ id: users.id }).from(users).where(eq(users.role, "super_admin")).limit(2);
+    if (owners.length <= 1) return;
+  }
+  await db.delete(users).where(eq(users.id, id.data));
   await audit("admin.user_deleted", { userId: admin.id, targetType: "user", targetId: id.data });
   revalidatePath("/admin/students");
   redirect("/admin/students");
@@ -1097,7 +1119,7 @@ export async function toggleAnnouncementAction(fd: FormData) {
 const AI_KEYS = new Set<string>(["ai_provider", "ai_model", "ai_api_key", "ai_auto_approve", "ai_min_confidence", "bunny_library_id", "bunny_api_key", "bunny_cdn_hostname", "img_hero", "img_about", "img_feature_1", "img_feature_2", "img_feature_3", "img_auth", "auth_quote", "auth_quote_author"]);
 
 export async function updateSettingsAction(_prev: AdminState, fd: FormData): Promise<AdminState> {
-  const admin = await requireAdmin();
+  const admin = await requireSuperAdmin();
   const keys = (Object.keys(DEFAULT_SETTINGS) as SettingsKey[]).filter((k) => !AI_KEYS.has(k));
   const now = new Date();
   for (const key of keys) {
@@ -1106,14 +1128,20 @@ export async function updateSettingsAction(_prev: AdminState, fd: FormData): Pro
     let value = String(raw).trim().slice(0, 2000);
     if (key === "max_devices") {
       const n = Number(value);
-      value = String(Number.isInteger(n) && n >= 1 && n <= 10 ? n : 2);
+      value = String(Number.isInteger(n) && n >= 1 && n <= 10 ? n : 1);
+    }
+    if ((key === "theme_primary" || key === "theme_secondary" || key === "theme_bg_light" || key === "theme_bg_dark") && value && !isHexColor(value)) {
+      return { error: `لون ${key} غير صالح – استخدم صيغة HEX مثل #7c5cff` };
+    }
+    if (key === "animation_preset" && value && !(ANIMATION_PRESETS as readonly string[]).includes(value)) {
+      return { error: "نمط الحركة المختار غير صالح" };
     }
     if (key === "allow_registration" || key === "pricing_enabled") value = value === "true" || value === "on" ? "true" : "false";
     if (key === "plan_popular" && !["basic", "premium", "vip", "none"].includes(value)) value = "premium";
     if (["facebook", "instagram", "youtube", "telegram", "tiktok", "developer_url"].includes(key) && value && !/^https?:\/\//i.test(value)) {
       return { error: `رابط ${key} غير صالح – يجب أن يبدأ بـ https://` };
     }
-    await db.insert(settings).values({ key, value, updatedAt: now }).onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: now } });
+    await db.insert(platformSettings).values({ key, value, updatedAt: now }).onConflictDoUpdate({ target: platformSettings.key, set: { value, updatedAt: now } });
   }
   await audit("admin.settings_updated", { userId: admin.id });
   revalidatePath("/", "layout");
@@ -1122,10 +1150,10 @@ export async function updateSettingsAction(_prev: AdminState, fd: FormData): Pro
 
 /* ───────────────────────── Site images (hero / about / features / auth) ───────────────────────── */
 
-const IMAGE_KEYS = ["img_hero", "img_about", "img_feature_1", "img_feature_2", "img_feature_3", "img_auth"] as const;
+const IMAGE_KEYS = ["img_hero", "img_about", "img_feature_1", "img_feature_2", "img_feature_3", "img_auth", "img_login", "img_register", "site_logo", "site_favicon"] as const;
 
 export async function updateSiteImagesAction(_prev: AdminState, fd: FormData): Promise<AdminState> {
-  const admin = await requireAdmin();
+  const admin = await requireSuperAdmin();
   const now = new Date();
   let changed = 0;
   for (const key of IMAGE_KEYS) {
@@ -1139,18 +1167,40 @@ export async function updateSiteImagesAction(_prev: AdminState, fd: FormData): P
       value = DEFAULT_SETTINGS[key];
     }
     if (value !== null) {
-      await db.insert(settings).values({ key, value, updatedAt: now }).onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: now } });
+      await db.insert(platformSettings).values({ key, value, updatedAt: now }).onConflictDoUpdate({ target: platformSettings.key, set: { value, updatedAt: now } });
       changed++;
     }
   }
   const quote = str(fd, "auth_quote").trim().slice(0, 300);
   const author = str(fd, "auth_quote_author").trim().slice(0, 80);
   for (const [key, value] of [["auth_quote", quote], ["auth_quote_author", author]] as const) {
-    if (fd.has(key)) await db.insert(settings).values({ key, value, updatedAt: now }).onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: now } });
+    if (fd.has(key)) await db.insert(platformSettings).values({ key, value, updatedAt: now }).onConflictDoUpdate({ target: platformSettings.key, set: { value, updatedAt: now } });
   }
   await audit("admin.site_images_updated", { userId: admin.id, meta: { changed } });
   revalidatePath("/", "layout");
   return { ok: true, message: changed ? `تم تحديث ${changed} صورة وحفظ الرسالة` : "تم حفظ الرسالة التحفيزية" };
+}
+
+/* ───────────────────────── Floating support button (teacher_admin + super_admin) ───────────────────────── */
+
+export async function updateSupportSettingsAction(_prev: AdminState, fd: FormData): Promise<AdminState> {
+  const staff = await requireTeacherAdmin();
+  const enabled = fd.get("enabled") === "on" || fd.get("enabled") === "true";
+  const channels = String(fd.get("channels") ?? "both");
+  const whatsapp = String(fd.get("whatsapp") ?? "").replace(/\D/g, "").slice(0, 15);
+  const telegram = String(fd.get("telegram") ?? "").trim().replace(/^@+/, "").replace(/^https?:\/\/(t\.me|telegram\.me)\//i, "").replace(/\/+$/, "").slice(0, 64);
+  const welcomeMessage = String(fd.get("welcome_message") ?? "").trim().slice(0, 300) || "السلام عليكم، عندي استفسار بخصوص المنصة";
+  if (!["whatsapp", "telegram", "both"].includes(channels)) return { error: "قناة التواصل غير صالحة" };
+  if (whatsapp && (whatsapp.length < 10 || whatsapp.length > 15)) return { error: "رقم الواتساب غير صالح – استخدم الصيغة الدولية بدون + (مثال: 2010xxxxxxxx)" };
+  if (telegram && !/^[A-Za-z0-9_]{3,64}$/.test(telegram)) return { error: "اسم مستخدم تيليجرام غير صالح" };
+  const now = new Date();
+  await db
+    .insert(supportSettings)
+    .values({ id: "default", enabled, channels, whatsapp, telegram, welcomeMessage, updatedAt: now })
+    .onConflictDoUpdate({ target: supportSettings.id, set: { enabled, channels, whatsapp, telegram, welcomeMessage, updatedAt: now } });
+  await audit("admin.support_updated", { userId: staff.id, meta: { enabled, channels } });
+  revalidatePath("/", "layout");
+  return { ok: true, message: "تم حفظ إعدادات زر التواصل" };
 }
 
 /* ───────────────────────── Testimonials ───────────────────────── */

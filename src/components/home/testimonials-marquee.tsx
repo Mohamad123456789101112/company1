@@ -15,7 +15,7 @@ function Card({ t }: { t: MarqueeItem }) {
           <Star key={i} className={cn("size-4", i < t.stars ? "fill-peach-400 text-peach-400" : "text-slate-300")} />
         ))}
       </div>
-      <blockquote className="mt-3 line-clamp-4 flex-1 font-taj text-sm leading-7 text-slate-700 dark:text-slate-200">“{t.text}”</blockquote>
+      <blockquote className="mt-3 line-clamp-4 flex-1 font-taj text-sm leading-7 text-slate-700 dark:text-white">“{t.text}”</blockquote>
       <figcaption className="mt-4 flex items-center gap-3 border-t border-slate-200/70 pt-3 dark:border-white/10">
         <span className="rounded-full bg-gradient-to-br from-brand-400 to-peach-400 p-[2px] shadow-md">
           <span className="block rounded-full bg-white p-[2px]">
@@ -24,7 +24,7 @@ function Card({ t }: { t: MarqueeItem }) {
         </span>
         <span className="min-w-0">
           <span className="block truncate font-amin text-sm font-bold text-slate-900 dark:text-white">{t.name}</span>
-          <span className="block truncate text-xs text-brand-600 dark:text-brand-300">{t.role ?? "طالب"}</span>
+          <span className="block truncate text-xs text-brand-600 dark:text-[#b9adff]">{t.role ?? "طالب"}</span>
         </span>
       </figcaption>
     </figure>

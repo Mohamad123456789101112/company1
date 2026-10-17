@@ -15,7 +15,7 @@ export default async function RegisterPage() {
   if (user) redirect(isStaff(user) ? "/admin" : "/dashboard");
 
   return (
-    <AuthShell title="أنشئ حسابك الجديد 🚀" subtitle="دقيقة واحدة وتبدأ أول حصة مجانًا">
+    <AuthShell title="أنشئ حسابك الجديد 🚀" subtitle="دقيقة واحدة وتبدأ أول حصة مجانًا" variant="register" image={s.img_register}>
       {settingBool(s.allow_registration) ? (
         <RegisterForm googleEnabled={isGoogleConfigured()} />
       ) : (

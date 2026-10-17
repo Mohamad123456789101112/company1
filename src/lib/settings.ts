@@ -1,7 +1,8 @@
 import "server-only";
 import { cache } from "react";
 import { db, dbReady } from "@/db";
-import { settings } from "@/db/schema";
+import { platformSettings, settings } from "@/db/schema";
+import { getSupportSettings } from "./support";
 
 export const DEFAULT_SETTINGS = {
   site_name: "منصة البشمهندس محمد فوزي للفيزياء",
@@ -21,6 +22,15 @@ export const DEFAULT_SETTINGS = {
   img_feature_2: "/images/feature-2.jpg",
   img_feature_3: "/images/feature-3.jpg",
   img_auth: "/images/teacher-about.jpg",
+  img_login: "",
+  img_register: "",
+  site_logo: "",
+  site_favicon: "/favicon.svg",
+  theme_primary: "#7c5cff",
+  theme_secondary: "#ff9a62",
+  theme_bg_light: "#ffffff",
+  theme_bg_dark: "#0f1020",
+  animation_preset: "smooth-fade-up",
   auth_quote: "الفيزياء لعبتنا مش عقدتنا… افهم الفكرة من الأساس، وحل معانا خطوة بخطوة لحد ما تقفّل الامتحان بثقة.",
   auth_quote_author: "م/ محمد فوزي",
   youtube_followers: "15400",
@@ -73,7 +83,7 @@ export const DEFAULT_SETTINGS = {
   ai_min_confidence: "85",
   checkout_instructions:
     "حوّل قيمة الكورس بالضبط على رقم فودافون كاش الموضح، ثم أدخل رقم العملية (المرجع) وارفع صورة واضحة لإيصال التحويل. تتم مراجعة الطلب وتفعيل الكورس خلال ساعات، أو فورًا عند نجاح التحقق الآلي.",
-  max_devices: "2",
+  max_devices: "1",
   allow_registration: "true",
   announcement_bar: "",
   developer_name: "محمد النواوي",
@@ -88,9 +98,32 @@ export const getSettings = cache(async (): Promise<SiteSettings> => {
   const merged: Record<string, string> = { ...DEFAULT_SETTINGS };
   try {
     await dbReady;
-    const rows = await db.select().from(settings);
-    for (const row of rows) {
-      if (row.key in DEFAULT_SETTINGS) merged[row.key] = row.value;
+    // Legacy table (read-fallback for old installs)…
+    try {
+      const rows = await db.select().from(settings);
+      for (const row of rows) {
+        if (row.key in DEFAULT_SETTINGS) merged[row.key] = row.value;
+      }
+    } catch {
+      /* table may not exist on partial installs – ignore */
+    }
+    // …overridden by the canonical SaaS template store (super_admin only).
+    try {
+      const rows = await db.select().from(platformSettings);
+      for (const row of rows) {
+        if (row.key in DEFAULT_SETTINGS) merged[row.key] = row.value;
+      }
+    } catch {
+      /* old database without the migration – legacy values still apply */
+    }
+    // Teacher-managed support numbers win over the platform defaults so the
+    // footer, CTAs and the floating button always share one source of truth.
+    try {
+      const support = await getSupportSettings();
+      if (support.whatsapp) merged.whatsapp = support.whatsapp;
+      if (support.telegram) merged.telegram = support.telegram;
+    } catch {
+      /* support table missing – platform values still apply */
     }
   } catch {
     // Database not ready yet – fall back to defaults so the site still renders.
@@ -110,6 +143,9 @@ export const getSettings = cache(async (): Promise<SiteSettings> => {
   if (merged.exams_count === "0") merged.exams_count = DEFAULT_SETTINGS.exams_count;
   if (merged.students_count === "0") merged.students_count = DEFAULT_SETTINGS.students_count;
   if (merged.facebook_followers === "0") merged.facebook_followers = DEFAULT_SETTINGS.facebook_followers;
+  if (!merged.img_login) merged.img_login = merged.img_auth;
+  if (!merged.img_register) merged.img_register = merged.img_auth;
+  if (!merged.site_favicon) merged.site_favicon = DEFAULT_SETTINGS.site_favicon;
   return merged as SiteSettings;
 });
 

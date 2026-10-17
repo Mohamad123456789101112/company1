@@ -9,7 +9,7 @@ import { ExternalLink, ShieldCheck } from "lucide-react";
  * toolbar hidden, and covered by a dynamic identity watermark grid.
  * Context menu, drag and keyboard save/print shortcuts are blocked.
  */
-export function PdfViewer({ mediaToken, watermark, external }: { mediaToken: string; watermark: { name: string; phone: string; id: string }; external?: boolean }) {
+export function PdfViewer({ mediaToken, watermark, external }: { mediaToken: string; watermark: { name: string; phone: string; id: string; ip?: string | null }; external?: boolean }) {
   const [hidden, setHidden] = useState(false);
   const src = `/api/media/${mediaToken}${external ? "" : "#toolbar=0&navpanes=0&scrollbar=1&view=FitH"}`;
 
@@ -42,7 +42,7 @@ export function PdfViewer({ mediaToken, watermark, external }: { mediaToken: str
             </span>
           ))}
         </div>
-        <div className="pointer-events-none absolute bottom-2 right-2 rounded-md bg-slate-900/70 px-2 py-0.5 font-mono text-[10px] text-white" dir="ltr">{watermark.phone} • {watermark.id}</div>
+        <div className="pointer-events-none absolute bottom-2 right-2 rounded-md bg-slate-900/70 px-2 py-0.5 font-mono text-[10px] text-white" dir="ltr">{watermark.phone} • {watermark.id}{watermark.ip ? ` • ${watermark.ip}` : ""}</div>
       </div>
     </div>
   );

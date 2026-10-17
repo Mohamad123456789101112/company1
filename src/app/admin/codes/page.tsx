@@ -51,7 +51,7 @@ export default async function CodesPage({ searchParams }: { searchParams: Promis
         <StatCard label="مستخدمة" value={Number(used)} tone="success" />
         <StatCard label="متاحة" value={Number(total) - Number(used)} tone="accent" />
       </div>
-      {staff.role === "admin" ? (
+      {true ? (
         tree.length ? (
           <Collapsible title="توليد أكواد جديدة" defaultOpen>
             <CodesForm tree={tree} />
@@ -85,7 +85,7 @@ export default async function CodesPage({ searchParams }: { searchParams: Promis
                 <td className="text-xs">{usedByName ? <>{usedByName}<span className="block text-[10px] text-slate-500">{formatDate(c.usedAt, true)}</span></> : "—"}</td>
                 <td className="text-xs text-slate-500">{c.expiresAt ? formatDate(c.expiresAt) : "بدون"}</td>
                 <td>
-                  {!c.isUsed && staff.role === "admin" && (
+                  {!c.isUsed && (
                     <form action={deleteCodeAction}><input type="hidden" name="codeId" value={c.id} /><button className="btn btn-ghost btn-sm text-rose-600" title="حذف"><Trash2 className="size-3.5" /></button></form>
                   )}
                 </td>

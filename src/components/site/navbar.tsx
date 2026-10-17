@@ -27,7 +27,7 @@ export async function Navbar() {
         <div className="pointer-events-auto bg-brand-600 py-1 text-center text-xs font-bold text-white">{settings.announcement_bar}</div>
       )}
       <nav className="pointer-events-auto relative mx-4 mt-4 flex h-16 items-center justify-between rounded-full border border-lav-200 bg-white/95 px-4 shadow-[0_8px_30px_-12px_rgba(59,39,134,0.22)] backdrop-blur md:mx-[8vw] md:rounded-2xl md:px-6 lg:mx-[6vw] lg:px-8 2xl:mx-auto 2xl:max-w-7xl font-amin">
-        <Logo siteName={settings.site_name} teacherName={settings.teacher_name} />
+        <Logo siteName={settings.site_name} teacherName={settings.teacher_name} logoUrl={settings.site_logo || undefined} />
 
         <ul className="hidden items-center gap-1 lg:flex">
           {NAV_LINKS.map((l) => (

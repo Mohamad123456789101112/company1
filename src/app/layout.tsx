@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { getSettings } from "@/lib/settings";
+import { buildThemeCss } from "@/lib/theme";
+import { normalizePreset } from "@/lib/animation";
+import { AnimationProvider } from "@/components/animation";
 import { ZoomControl } from "@/components/zoom-control";
 import { BackToTop } from "@/components/back-to-top";
 import "./globals.css";
@@ -24,7 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
       locale: "ar_EG",
       images: ["/images/og.jpg"],
     },
-    icons: { icon: "/favicon.svg" },
+    icons: { icon: s.site_favicon || "/favicon.svg" },
   };
 }
 
@@ -38,9 +41,11 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const s = await getSettings();
+  const themeCss = buildThemeCss(s);
   return (
-    <html lang="ar" dir="rtl" suppressHydrationWarning>
+    <html lang="ar" dir="rtl" suppressHydrationWarning data-anim={normalizePreset(s.animation_preset)}>
       <head>
         {/* Arabic fonts are self-hosted in /public/fonts and declared in globals.css
             (@font-face) — no external request, works offline, CSP-tight. */}
@@ -52,7 +57,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body className="min-h-screen font-sans">
-        {children}
+        {themeCss && <style dangerouslySetInnerHTML={{ __html: themeCss }} />}
+        <AnimationProvider preset={s.animation_preset}>{children}</AnimationProvider>
         <ZoomControl />
         <BackToTop />
       </body>

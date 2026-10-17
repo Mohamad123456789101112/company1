@@ -39,7 +39,7 @@ async function fetchText(url: string, ms = 7000): Promise<string | null> {
 
 export async function GET(req: Request) {
   const user = await getCurrentUser();
-  if (!user || (user.role !== "admin" && user.role !== "assistant")) {
+  if (!user || user.role === "student") {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 

@@ -31,7 +31,7 @@ export function GoogleButton({
   label?: string;
 }) {
   const href = `/api/auth/google${next ? `?next=${encodeURIComponent(next)}` : ""}`;
-  const buttonClass = "relative flex h-10 w-full items-center justify-center rounded-[4px] border border-[#747775] bg-white px-3 text-sm font-medium tracking-[0.25px] text-[#1f1f1f] transition-colors hover:bg-[#f8f9fa] active:bg-[#f1f3f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4285f4] focus-visible:ring-offset-2";
+  const buttonClass = "relative flex h-10 w-full items-center justify-center rounded-[4px] border border-[#747775] bg-white px-3 text-sm font-medium tracking-[0.25px] text-[#1f1f1f] transition-colors hover:bg-[#f8f9fa] active:bg-[#f1f3f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4285f4] focus-visible:ring-offset-2 dark:border-[#747775] dark:bg-white dark:text-[#1f1f1f] dark:hover:bg-[#f8f9fa] dark:active:bg-[#f1f3f4]";
   const buttonStyle = { fontFamily: "Roboto, Arial, sans-serif" };
   const contents = (
     <>

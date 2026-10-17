@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
           googleId: profile.sub,
           avatarUrl: profile.picture ?? null,
           emailVerifiedAt: new Date(),
-          role: isBootstrapAdminEmail(email) ? "admin" : "student",
+          role: isBootstrapAdminEmail(email) ? "super_admin" : "student",
         })
         .returning();
       if (!created) return fail("google_failed");
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
 
     if (user.isBanned || !user.isActive) return fail("banned");
 
-    const promote = isBootstrapAdminEmail(email) && user.role !== "admin";
+    const promote = isBootstrapAdminEmail(email) && user.role !== "super_admin" && user.role !== "admin";
     await db
       .update(users)
       .set({
@@ -106,14 +106,14 @@ export async function GET(request: NextRequest) {
         lastLoginIp: ip,
         failedLoginAttempts: 0,
         lockedUntil: null,
-        ...(promote ? { role: "admin" as const } : {}),
+        ...(promote ? { role: "super_admin" as const } : {}),
       })
       .where(eq(users.id, user.id));
 
-    const session = await createSession(user.id, Number(settings.max_devices) || 2);
+    const session = await createSession(user.id, Number(settings.max_devices) || 1);
     await audit("login.google", { userId: user.id });
 
-    const staff = promote || user.role === "admin" || user.role === "assistant";
+    const staff = promote || user.role !== "student";
     const incomplete = !user.phone || !user.parentPhone || !user.grade;
     const target = incomplete && !staff ? "/complete-profile" : safeRedirectPath(stored.next, staff ? "/admin" : "/dashboard");
 

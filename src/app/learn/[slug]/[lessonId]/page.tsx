@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { and, eq } from "drizzle-orm";
 import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, ClipboardCheck, FileText, Home, Lock, PlayCircle } from "lucide-react";
 import { db } from "@/db";
@@ -15,6 +16,7 @@ import { signMedia } from "@/lib/media-token";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge, ProgressBar } from "@/components/ui";
 import { cn, formatDate, maskPhone } from "@/lib/utils";
+import { ipFromHeaders } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "مشاهدة الدرس" };
@@ -54,7 +56,8 @@ export default async function LessonPage({ params, searchParams }: { params: Pro
   const videoToken = lesson.type === "video" && lesson.videoUrl ? signMedia({ l: lesson.id, u: user.id, k: "video" }) : null;
   const pdfToken = lesson.pdfUrl ? signMedia({ l: lesson.id, u: user.id, k: "pdf" }) : null;
   const pdfExternal = Boolean(lesson.pdfUrl && !lesson.pdfUrl.startsWith("/api/files/"));
-  const identity = { name: user.name.split(" ").slice(0, 2).join(" "), phone: user.phone ?? maskPhone(user.email), id: user.id.slice(0, 8).toUpperCase() };
+  const clientIp = ipFromHeaders(await headers());
+  const identity = { name: user.name.split(" ").slice(0, 2).join(" "), phone: user.phone ?? maskPhone(user.email), id: user.id.slice(0, 8).toUpperCase(), ip: clientIp };
 
   return (
     <div className="min-h-screen bg-lav-50 dark:bg-[var(--color-surface-0)]">

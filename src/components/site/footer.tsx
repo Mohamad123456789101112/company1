@@ -21,7 +21,7 @@ export async function Footer() {
       <div className="h-1 w-full bg-gradient-to-l from-brand-500 via-peach-400 to-brand-300" />
       <div className="container-x flex w-full flex-col items-start gap-10 py-12 md:flex-row md:items-start">
         <div className="flex h-full w-full min-w-0 flex-col items-start gap-6 md:w-1/2">
-          <Logo siteName={s.site_name} teacherName={s.teacher_name} />
+          <Logo siteName={s.site_name} teacherName={s.teacher_name} logoUrl={s.site_logo || undefined} />
           <p className="max-w-md text-sm leading-7 text-slate-500">{s.footer_text}</p>
           <div className="flex gap-2">
             {social.map(({ href, label, Icon }) => (

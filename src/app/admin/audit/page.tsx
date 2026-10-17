@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { auditLogs, users } from "@/db/schema";
-import { requireStaff } from "@/lib/auth";
+import { requireSuperAdmin } from "@/lib/auth";
 import { Badge, PageHeader } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
 
@@ -14,7 +14,7 @@ const LABELS: Record<string, string> = {
 };
 
 export default async function AuditPage() {
-  await requireStaff();
+  await requireSuperAdmin();
   const rows = await db
     .select({ log: auditLogs, userName: users.name, userEmail: users.email })
     .from(auditLogs)
