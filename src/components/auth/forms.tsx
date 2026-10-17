@@ -31,7 +31,8 @@ export function GoogleButton({
   label?: string;
 }) {
   const href = `/api/auth/google${next ? `?next=${encodeURIComponent(next)}` : ""}`;
-  const buttonClass = "relative flex h-10 w-full items-center justify-center rounded-[4px] border border-[#747775] bg-white px-3 font-[Arial,sans-serif] text-sm font-medium tracking-[0.25px] text-[#1f1f1f] transition-colors hover:bg-[#f8f9fa] active:bg-[#f1f3f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4285f4] focus-visible:ring-offset-2";
+  const buttonClass = "relative flex h-10 w-full items-center justify-center rounded-[4px] border border-[#747775] bg-white px-3 text-sm font-medium tracking-[0.25px] text-[#1f1f1f] transition-colors hover:bg-[#f8f9fa] active:bg-[#f1f3f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4285f4] focus-visible:ring-offset-2";
+  const buttonStyle = { fontFamily: "Roboto, Arial, sans-serif" };
   const contents = (
     <>
       <GoogleIcon className="absolute left-3 size-[18px]" aria-hidden="true" />
@@ -42,7 +43,7 @@ export function GoogleButton({
   if (!enabled) {
     return (
       <div>
-        <button type="button" className={`${buttonClass} cursor-not-allowed opacity-60`} disabled title="يلزم إعداد بيانات OAuth الخاصة بـ Google أولًا">
+        <button type="button" className={`${buttonClass} cursor-not-allowed opacity-60`} style={buttonStyle} disabled title="يلزم إعداد بيانات OAuth الخاصة بـ Google أولًا">
           {contents}
         </button>
         <p className="mt-2 text-center text-xs leading-5 text-slate-500">
@@ -53,7 +54,7 @@ export function GoogleButton({
   }
 
   return (
-    <a href={href} dir="ltr" className={buttonClass} aria-label={label}>
+    <a href={href} dir="ltr" className={buttonClass} style={buttonStyle} aria-label={label}>
       {contents}
     </a>
   );
