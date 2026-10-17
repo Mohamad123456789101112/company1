@@ -37,8 +37,11 @@ DO $$ BEGIN
   CREATE TYPE "public"."quiz_scope" AS ENUM('course', 'unit', 'lesson');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
-  CREATE TYPE "public"."user_role" AS ENUM('student', 'assistant', 'admin');
+  CREATE TYPE "public"."user_role" AS ENUM('student', 'assistant', 'admin', 'super_admin', 'teacher_admin');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- ترقية الدور المزدوج للتثبيتات القديمة (RBAC: super_admin / teacher_admin)
+DO $$ BEGIN ALTER TYPE "public"."user_role" ADD VALUE IF NOT EXISTS 'super_admin'; EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN ALTER TYPE "public"."user_role" ADD VALUE IF NOT EXISTS 'teacher_admin'; EXCEPTION WHEN others THEN NULL; END $$;
 DO $$ BEGIN
   CREATE TYPE "public"."transaction_type" AS ENUM('code_recharge', 'payment_recharge', 'course_purchase', 'admin_adjustment', 'refund');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
@@ -259,6 +262,23 @@ CREATE TABLE IF NOT EXISTS "sessions" (
 CREATE TABLE IF NOT EXISTS "settings" (
 	"key" text PRIMARY KEY NOT NULL,
 	"value" text DEFAULT '' NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+-- ── مخزن القالب الموحد (Multi-Tenant SaaS Template): كل إعدادات الديزاين
+-- والثيمات والصور والأنيميشن في جدول واحد. الكتابة فيه للـ super_admin فقط.
+CREATE TABLE IF NOT EXISTS "platform_settings" (
+	"key" text PRIMARY KEY NOT NULL,
+	"value" text DEFAULT '' NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+-- ── إعدادات زر الدعم العائم: يديرها teacher_admin و super_admin.
+CREATE TABLE IF NOT EXISTS "support_settings" (
+	"id" text PRIMARY KEY DEFAULT 'default' NOT NULL,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"channels" text DEFAULT 'both' NOT NULL,
+	"whatsapp" text DEFAULT '' NOT NULL,
+	"telegram" text DEFAULT '' NOT NULL,
+	"welcome_message" text DEFAULT 'السلام عليكم، عندي استفسار بخصوص المنصة' NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 CREATE TABLE IF NOT EXISTS "testimonials" (
@@ -497,6 +517,43 @@ ALTER TABLE "quizzes" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "rate_limits" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "sessions" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "settings" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "platform_settings" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "support_settings" ENABLE ROW LEVEL SECURITY;
+
+-- =====================================================================
+--  سياسات RLS الصارمة (Cybersecurity Suite)
+--  التطبيق يتصل بدور المالك عبر DATABASE_URL ويفرض RBAC في طبقة السيرفر
+--  (requireSuperAdmin / requireTeacherAdmin + تحقق من الـ session في كل
+--  Server Action و API Route)، بينما أي وصول عبر Supabase REST يكون مرفوضًا
+--  صراحةً لكل الجداول الحساسة – لا سياسات سماح لأي دور خارجي.
+--    • platform_settings : لا يعدّلها إلا super_admin (عبر السيرفر فقط)
+--    • support_settings  : يديرها teacher_admin و super_admin (عبر السيرفر فقط)
+-- =====================================================================
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "platform_settings_deny_rest" ON "platform_settings";
+  CREATE POLICY "platform_settings_deny_rest" ON "platform_settings"
+    FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "support_settings_deny_rest" ON "support_settings";
+  CREATE POLICY "support_settings_deny_rest" ON "support_settings"
+    FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "settings_deny_rest" ON "settings";
+  CREATE POLICY "settings_deny_rest" ON "settings"
+    FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "users_deny_rest" ON "users";
+  CREATE POLICY "users_deny_rest" ON "users"
+    FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
+EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "sessions_deny_rest" ON "sessions";
+  CREATE POLICY "sessions_deny_rest" ON "sessions"
+    FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
+EXCEPTION WHEN others THEN NULL; END $$;
 ALTER TABLE "testimonials" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "uploads" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;
@@ -579,13 +636,30 @@ INSERT INTO "settings" ("key", "value") VALUES
   ('footer_text', 'المنصة الرسمية للبشمهندس محمد فوزي لتدريس الفيزياء للثانوية العامة – شرح، امتحانات إلكترونية، ومتابعة مستمرة.')
 ON CONFLICT ("key") DO NOTHING;
 
+-- ── ترحيل الإعدادات القديمة إلى مخزن القالب الموحد (مرة واحدة، آمن للتكرار)
+INSERT INTO "platform_settings" ("key", "value")
+SELECT "key", "value" FROM "settings"
+ON CONFLICT ("key") DO NOTHING;
+
+-- ── صف إعدادات الدعم الافتراضي (يشتق أرقام التواصل الحالية تلقائيًا)
+INSERT INTO "support_settings" ("id", "enabled", "channels", "whatsapp", "telegram", "welcome_message")
+SELECT 'default', true, 'both',
+  COALESCE((SELECT "value" FROM "settings" WHERE "key" = 'whatsapp'), ''),
+  COALESCE((SELECT "value" FROM "settings" WHERE "key" = 'telegram'), ''),
+  'السلام عليكم، عندي استفسار بخصوص المنصة'
+WHERE NOT EXISTS (SELECT 1 FROM "support_settings" WHERE "id" = 'default');
+
+-- ── ترقية حسابات التثبيتات القديمة إلى الدور المزدوج الجديد
+UPDATE "users" SET "role" = 'super_admin' WHERE "role" = 'admin';
+UPDATE "users" SET "role" = 'teacher_admin' WHERE "role" = 'assistant';
+
 -- =====================================================================
---  حساب المدير الافتراضي
+--  حساب المالك الافتراضي (super_admin)
 --  البريد: admin@mohamedfawzi.com   |   كلمة المرور: Admin@12345
 --  ⚠️ غيّر كلمة المرور فور أول تسجيل دخول (سيُطلب منك ذلك تلقائيًا).
 -- =====================================================================
 INSERT INTO "users" ("name", "email", "password_hash", "role", "must_change_password", "email_verified_at")
-VALUES ('م/ محمد فوزي', 'admin@mohamedfawzi.com', '$2b$12$abU2lUjt4/JOZcC.3d6Um.grsIY.OXEjDPyA48aqRFIXQdeaaBkHO', 'admin', true, now())
+VALUES ('م/ محمد فوزي', 'admin@mohamedfawzi.com', '$2b$12$abU2lUjt4/JOZcC.3d6Um.grsIY.OXEjDPyA48aqRFIXQdeaaBkHO', 'super_admin', true, now())
 ON CONFLICT DO NOTHING;
 
 

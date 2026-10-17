@@ -4,7 +4,7 @@ import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { ArrowRight, Ban, KeyRound, LogOut, ShieldCheck, Trash2, Unlock, UserCog } from "lucide-react";
 import { db } from "@/db";
 import { courses, enrollments, lessonAccess, lessons, paymentRequests, quizAttempts, quizzes, sessions, users } from "@/db/schema";
-import { requireStaff } from "@/lib/auth";
+import { isSuperAdmin, requireStaff, roleLabel } from "@/lib/auth";
 import {
   deleteStudentAction,
   enrollStudentAction,
@@ -35,7 +35,7 @@ export default async function StudentDetail({ params }: { params: Promise<{ id: 
     db.select().from(sessions).where(eq(sessions.userId, id)).orderBy(desc(sessions.lastSeenAt)),
     db.select({ la: lessonAccess, lessonTitle: lessons.title, courseTitle: courses.title }).from(lessonAccess).innerJoin(lessons, eq(lessons.id, lessonAccess.lessonId)).innerJoin(courses, eq(courses.id, lessonAccess.courseId)).where(eq(lessonAccess.userId, id)).orderBy(desc(lessonAccess.createdAt)).limit(100),
   ]);
-  const isAdminUser = staff.role === "admin";
+  const isAdminUser = isSuperAdmin(staff);
   const locked = u.lockedUntil && u.lockedUntil > new Date();
   const enrolledIds = new Set(enr.map((e) => e.e.courseId));
 
@@ -49,7 +49,7 @@ export default async function StudentDetail({ params }: { params: Promise<{ id: 
           <p className="text-xs text-slate-500" dir="ltr">{u.email}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Badge tone="brand">{gradeLabel(u.grade)}</Badge>
-            <Badge tone={u.role === "student" ? "neutral" : "success"}>{u.role === "admin" ? "مدير" : u.role === "assistant" ? "مساعد" : "طالب"}</Badge>
+            <Badge tone={u.role === "student" ? "neutral" : "success"}>{roleLabel(u.role)}</Badge>
             {u.isBanned && <Badge tone="danger">محظور{u.banReason ? `: ${u.banReason}` : ""}</Badge>}
             {!u.isActive && <Badge tone="warning">موقوف</Badge>}
             {locked && <Badge tone="warning">مقفول حتى {formatDate(u.lockedUntil, true)}</Badge>}
@@ -90,23 +90,23 @@ export default async function StudentDetail({ params }: { params: Promise<{ id: 
             <input type="hidden" name="userId" value={u.id} />
             <button className="btn btn-outline btn-sm"><LogOut className="size-3.5" /> فصل كل الأجهزة ({sess.length})</button>
           </ConfirmForm>
+          {(isAdminUser || u.role === "student") && u.id !== staff.id && u.role !== "super_admin" && u.role !== "admin" && (
+            <ConfirmForm action={deleteStudentAction} message="حذف الحساب نهائيًا مع كل بياناته؟ لا يمكن التراجع!">
+              <input type="hidden" name="userId" value={u.id} />
+              <button className="btn btn-danger btn-sm"><Trash2 className="size-3.5" /> حذف نهائي</button>
+            </ConfirmForm>
+          )}
           {isAdminUser && u.id !== staff.id && (
             <>
               <form action={setRoleAction} className="flex items-center gap-2">
                 <input type="hidden" name="userId" value={u.id} />
-                <Select name="role" defaultValue={u.role} className="py-1.5 text-xs">
+                <Select name="role" defaultValue={u.role === "admin" ? "super_admin" : u.role === "assistant" ? "teacher_admin" : u.role} className="py-1.5 text-xs">
                   <option value="student">طالب</option>
-                  <option value="assistant">مساعد</option>
-                  <option value="admin">مدير</option>
+                  <option value="teacher_admin">مدرس / سكرتارية</option>
+                  <option value="super_admin">مالك المنصة</option>
                 </Select>
                 <button className="btn btn-outline btn-sm"><ShieldCheck className="size-3.5" /> تغيير الدور</button>
               </form>
-              {u.role !== "admin" && (
-                <ConfirmForm action={deleteStudentAction} message="حذف الحساب نهائيًا مع كل بياناته؟ لا يمكن التراجع!">
-                  <input type="hidden" name="userId" value={u.id} />
-                  <button className="btn btn-danger btn-sm"><Trash2 className="size-3.5" /> حذف نهائي</button>
-                </ConfirmForm>
-              )}
             </>
           )}
         </div>

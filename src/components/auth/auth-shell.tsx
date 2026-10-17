@@ -6,10 +6,12 @@ import { getSettings } from "@/lib/settings";
 import { Logo } from "@/components/site/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-/** Shared, full-height split layout for the login and registration pages. */
-export async function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
+/** Shared, full-height split layout for the login and registration pages.
+ * Tablet (768–1024px): login container is 90% wide, register is 80% wide. */
+export async function AuthShell({ title, subtitle, children, variant = "login", image }: { title: string; subtitle: string; children: ReactNode; variant?: "login" | "register"; image?: string }) {
   const s = await getSettings();
-  const authImage = s.img_auth || "/images/teacher-about.jpg";
+  const authImage = image || s.img_auth || "/images/teacher-about.jpg";
+  const tabletWidth = variant === "register" ? "md:w-[80%] lg:w-[90%]" : "md:w-[90%]";
   const [first, ...rest] = title.split(" ");
 
   return (
@@ -17,7 +19,7 @@ export async function AuthShell({ title, subtitle, children }: { title: string; 
       <div className="pointer-events-none absolute -left-28 top-20 size-72 rounded-full bg-brand-200/40 blur-3xl" />
       <div className="pointer-events-none absolute -right-24 bottom-0 size-72 rounded-full bg-peach-200/35 blur-3xl" />
 
-      <div className="relative z-10 mx-auto grid min-h-[calc(100svh-1.5rem)] w-[92%] max-w-[1500px] grid-cols-1 gap-3 sm:min-h-[calc(100svh-3rem)] sm:w-[90%] sm:gap-6 lg:grid-cols-2">
+      <div className={`relative z-10 mx-auto grid min-h-[calc(100svh-1.5rem)] w-[92%] max-w-[1500px] grid-cols-1 gap-3 sm:min-h-[calc(100svh-3rem)] sm:w-[90%] sm:gap-6 lg:grid-cols-2 ${tabletWidth}`}>
         <section aria-label="رسالة المنصة" className="relative isolate min-h-[19rem] overflow-hidden rounded-3xl bg-brand-900 shadow-[0_24px_70px_-28px_rgba(59,39,134,0.55)] sm:min-h-[24rem] lg:min-h-[calc(100svh-3rem)]">
           <Image
             src={authImage}
@@ -34,7 +36,7 @@ export async function AuthShell({ title, subtitle, children }: { title: string; 
           <div className="pointer-events-none absolute -right-16 bottom-10 size-64 rounded-full bg-brand-300/20 blur-3xl" />
 
           <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-3 p-4 sm:p-6">
-            <Logo siteName={s.site_name} teacherName={s.teacher_name} light />
+            <Logo siteName={s.site_name} teacherName={s.teacher_name} light logoUrl={s.site_logo || undefined} />
             <Link href="/" className="shrink-0 rounded-xl border border-white/75 bg-white/10 px-3.5 py-2 font-amin text-sm font-bold text-white backdrop-blur-md transition hover:bg-white hover:text-brand-700 sm:px-4">
               الرئيسية
             </Link>

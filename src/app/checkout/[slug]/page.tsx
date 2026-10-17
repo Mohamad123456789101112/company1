@@ -40,7 +40,7 @@ export default async function CheckoutPage({ params }: { params: Promise<{ slug:
     <div className="min-h-screen bg-lav-50 dark:bg-[var(--color-surface-0)]">
       <header className="border-b border-lav-200 bg-white/90 backdrop-blur dark:bg-[var(--color-surface)]">
         <div className="container-x flex h-16 items-center justify-between">
-          <Logo siteName={s.site_name} teacherName={s.teacher_name} />
+          <Logo siteName={s.site_name} teacherName={s.teacher_name} logoUrl={s.site_logo || undefined} />
           <div className="flex items-center gap-2">
             <ThemeToggle size="sm" />
             <Link href={`/courses/${course.slug}`} className="btn btn-ghost btn-sm"><ArrowRight className="size-4" /> رجوع</Link>

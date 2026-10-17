@@ -147,7 +147,7 @@ export function DashboardShell({ variant, brand, user, nav, notifications, unrea
   }, {});
 
   return (
-    <div className="min-h-screen bg-[#f6f7fb] text-slate-900 dark:bg-[var(--color-surface-0)] dark:text-slate-100">
+    <div className="min-h-screen bg-[#f6f7fb] text-slate-900 dark:bg-[var(--color-surface-0)] dark:text-slate-900">
       {/* mobile overlay */}
       <div className={cn("fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm transition-opacity lg:hidden", mobileOpen ? "opacity-100" : "pointer-events-none opacity-0")} onClick={() => setMobileOpen(false)} aria-hidden="true" />
 
@@ -295,7 +295,7 @@ export function DashboardShell({ variant, brand, user, nav, notifications, unrea
                     <div className="mx-2 my-1 h-px bg-lav-200" />
                     <Link href={variant === "admin" ? "/dashboard/profile" : "/dashboard/profile"} onClick={closeMenu} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-lav-100"><UserCircle className="size-4 text-brand-500" /> حسابي والأجهزة</Link>
                     <Link href="/" onClick={closeMenu} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-lav-100"><Globe className="size-4 text-brand-500" /> الموقع الرئيسي</Link>
-                    {(user.role === "admin" || user.role === "assistant") && (
+                    {user.role !== "student" && (
                       <Link href={variant === "admin" ? "/dashboard" : "/admin"} onClick={closeMenu} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-lav-100">
                         {variant === "admin" ? <LayoutDashboard className="size-4 text-brand-500" /> : <ShieldCheck className="size-4 text-peach-500" />}
                         {variant === "admin" ? "لوحة الطالب" : "لوحة الإدارة"}

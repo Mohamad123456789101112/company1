@@ -158,12 +158,41 @@ export async function requireUser(nextPath?: string): Promise<User> {
   return user;
 }
 
-export function isStaff(user: User | null | undefined) {
-  return !!user && (user.role === "admin" || user.role === "assistant");
+/* ───────────── Dual RBAC (super_admin / teacher_admin) ─────────────
+ * super_admin  : platform owner – identity, theme, images, animation, security.
+ * teacher_admin: teacher / secretariat – content + students + codes + support button.
+ * Legacy `admin` behaves as super_admin, legacy `assistant` as teacher_admin.
+ */
+
+export function isSuperAdmin(user: User | null | undefined) {
+  return !!user && (user.role === "super_admin" || user.role === "admin");
 }
 
+export function isTeacherAdmin(user: User | null | undefined) {
+  return !!user && (user.role === "teacher_admin" || user.role === "assistant" || isSuperAdmin(user));
+}
+
+export function isStaff(user: User | null | undefined) {
+  return isTeacherAdmin(user);
+}
+
+/** Legacy alias – kept so old gates stay super-admin-only. */
 export function isAdmin(user: User | null | undefined) {
-  return !!user && user.role === "admin";
+  return isSuperAdmin(user);
+}
+
+export function roleLabel(role: User["role"]) {
+  switch (role) {
+    case "super_admin":
+    case "admin":
+      return "مالك المنصة";
+    case "teacher_admin":
+      return "المدرس / السكرتارية";
+    case "assistant":
+      return "مساعد";
+    default:
+      return "طالب";
+  }
 }
 
 export async function requireStaff(): Promise<User> {
@@ -173,10 +202,22 @@ export async function requireStaff(): Promise<User> {
   return user;
 }
 
+/** Legacy alias – super-admin-only. */
 export async function requireAdmin(): Promise<User> {
+  return requireSuperAdmin();
+}
+
+export async function requireSuperAdmin(): Promise<User> {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=%2Fadmin");
-  if (!isAdmin(user)) redirect("/admin");
+  if (!isSuperAdmin(user)) redirect("/admin");
+  return user;
+}
+
+export async function requireTeacherAdmin(): Promise<User> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login?next=%2Fadmin");
+  if (!isTeacherAdmin(user)) redirect("/dashboard");
   return user;
 }
 

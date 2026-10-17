@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { LoginForm } from "@/components/auth/forms";
 import { getCurrentUser, isStaff } from "@/lib/auth";
+import { getSettings } from "@/lib/settings";
 import { isGoogleConfigured } from "@/lib/google";
 import { safeRedirectPath } from "@/lib/security";
 
@@ -21,7 +22,7 @@ const GOOGLE_ERRORS: Record<string, string> = {
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
-  const user = await getCurrentUser();
+  const [user, s] = await Promise.all([getCurrentUser(), getSettings()]);
   if (user) redirect(isStaff(user) ? "/admin" : "/dashboard");
 
   const next = typeof sp.next === "string" ? safeRedirectPath(sp.next, "") || undefined : undefined;
@@ -29,7 +30,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const notice = error ?? (sp.reset ? "تم تغيير كلمة المرور، سجّل الدخول بكلمة المرور الجديدة." : undefined);
 
   return (
-    <AuthShell title="أهلًا بعودتك 👋" subtitle="سجّل الدخول للوصول إلى كورساتك وامتحاناتك">
+    <AuthShell title="أهلًا بعودتك 👋" subtitle="سجّل الدخول للوصول إلى كورساتك وامتحاناتك" variant="login" image={s.img_login}>
       <LoginForm next={next} googleEnabled={isGoogleConfigured()} notice={notice} />
     </AuthShell>
   );

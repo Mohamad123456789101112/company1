@@ -23,6 +23,7 @@ import {
   updateQuizAction,
   updateSettingsAction,
   updateSiteImagesAction,
+  updateSupportSettingsAction,
   testAiAction,
   type AdminState,
 } from "@/actions/admin";
@@ -35,6 +36,8 @@ import { CopyButton, SubmitButton } from "@/components/ui-client";
 import { GRADES, GRADE_KEYS } from "@/lib/utils";
 import type { Course, Lesson, Question, Quiz } from "@/db/schema";
 import type { SiteSettings } from "@/lib/settings";
+import { ANIMATION_PRESET_LABELS, ANIMATION_PRESETS } from "@/lib/animation";
+import type { SupportConfig } from "@/lib/support";
 
 /* ───────────── Courses ───────────── */
 
@@ -348,7 +351,7 @@ export function AiQuizFromJsonForm({ courses }: { courses: { id: string; title: 
   const [state, action] = useActionState(createQuizFromJsonAction, null);
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-brand-200 bg-brand-50/60 p-4 text-xs leading-6 text-slate-700 dark:border-brand-300/40 dark:bg-brand-50/20 dark:text-slate-300">
+      <div className="rounded-2xl border border-brand-200 bg-brand-50/60 p-4 text-xs leading-6 text-slate-700 dark:border-brand-300/40 dark:bg-brand-50/20 dark:text-slate-800">
         <p className="text-sm font-black text-slate-900 dark:text-white">🤖 امتحان كامل في ثوانٍ بالذكاء الاصطناعي</p>
         <ol className="mt-2 list-inside list-decimal space-y-1">
           <li>انسخ القالب الجاهز وضعه في ChatGPT أو Gemini مع اسم الموضوع.</li>
@@ -607,13 +610,17 @@ export function AnnouncementForm() {
 
 /* ───────────── Site images ───────────── */
 
-const IMAGE_SLOTS: Array<{ key: "img_hero" | "img_about" | "img_feature_1" | "img_feature_2" | "img_feature_3" | "img_auth"; label: string; hint: string }> = [
+const IMAGE_SLOTS: Array<{ key: "img_hero" | "img_about" | "img_feature_1" | "img_feature_2" | "img_feature_3" | "img_auth" | "img_login" | "img_register" | "site_logo" | "site_favicon"; label: string; hint: string }> = [
   { key: "img_hero", label: "صورة الهيدر (أعلى الصفحة الرئيسية)", hint: "الأفضل مربعة 900×900 – تظهر داخل إطار مقوّس" },
   { key: "img_about", label: "صورة قسم «عن المستر»", hint: "الأفضل PNG بخلفية شفافة (قصاصة واقف) – تظهر على كارت متدرّج" },
   { key: "img_feature_1", label: "كارت 1: تنظيم الدروس والوحدات", hint: "مربعة أو طولية 4:5" },
   { key: "img_feature_2", label: "كارت 2: دروس بالفيديو والصور التوضيحية", hint: "مربعة أو طولية 4:5" },
   { key: "img_feature_3", label: "كارت 3: اختبارات وتقييم مستمر", hint: "مربعة أو طولية 4:5" },
-  { key: "img_auth", label: "صورة صفحات تسجيل الدخول / إنشاء الحساب", hint: "طولية – تظهر مع الرسالة التحفيزية" },
+  { key: "img_auth", label: "صورة صفحات تسجيل الدخول / إنشاء الحساب (افتراضية)", hint: "طولية – تظهر مع الرسالة التحفيزية" },
+  { key: "img_login", label: "صورة صفحة تسجيل الدخول", hint: "طولية – فارغة = نفس الصورة الافتراضية" },
+  { key: "img_register", label: "صورة صفحة إنشاء الحساب", hint: "طولية – فارغة = نفس الصورة الافتراضية" },
+  { key: "site_logo", label: "لوجو الموقع", hint: "شفافة PNG – فارغة = الشعار الافتراضي" },
+  { key: "site_favicon", label: "أيقونة المتصفح (Favicon)", hint: "مربعة صغيرة – ICO/PNG" },
 ];
 
 export function SiteImagesForm({ values }: { values: Record<(typeof IMAGE_SLOTS)[number]["key"], string> & { auth_quote: string; auth_quote_author: string } }) {
@@ -625,8 +632,12 @@ export function SiteImagesForm({ values }: { values: Record<(typeof IMAGE_SLOTS)
         {IMAGE_SLOTS.map((slot) => (
           <div key={slot.key} className="rounded-2xl border border-lav-200 bg-white p-4">
             <div className="mb-3 flex items-center gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={values[slot.key]} alt="" className="size-16 shrink-0 rounded-xl border border-lav-200 bg-lav-50 object-cover" />
+              {values[slot.key] ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={values[slot.key]} alt="" className="size-16 shrink-0 rounded-xl border border-lav-200 bg-lav-50 object-cover" />
+              ) : (
+                <span className="grid size-16 shrink-0 place-items-center rounded-xl border border-dashed border-lav-300 bg-lav-50 text-[10px] font-bold text-slate-400">بدون صورة</span>
+              )}
               <div>
                 <p className="text-sm font-bold text-slate-900">{slot.label}</p>
                 <p className="text-[11px] text-slate-500">{slot.hint}</p>
@@ -697,7 +708,12 @@ export function ResetPasswordForm({ userId }: { userId: string }) {
 
 /* ───────────── Settings ───────────── */
 
-const SETTINGS_FIELDS: Array<{ key: keyof SiteSettings; label: string; type?: "text" | "textarea" | "number" | "select" | "plan_select"; hint?: string; group: string; dir?: "ltr" }> = [
+const SETTINGS_FIELDS: Array<{ key: keyof SiteSettings; label: string; type?: "text" | "textarea" | "number" | "select" | "plan_select" | "color" | "anim_select"; hint?: string; group: string; dir?: "ltr" }> = [
+  { key: "theme_primary", label: "اللون الرئيسي", type: "color", group: "الثيم والحركة", dir: "ltr" },
+  { key: "theme_secondary", label: "اللون الفرعي", type: "color", group: "الثيم والحركة", dir: "ltr" },
+  { key: "theme_bg_light", label: "لون خلفية الوضع الفاتح", type: "color", group: "الثيم والحركة", dir: "ltr" },
+  { key: "theme_bg_dark", label: "لون خلفية الوضع الداكن", type: "color", group: "الثيم والحركة", dir: "ltr" },
+  { key: "animation_preset", label: "نمط حركة العناصر (يُطبق على الموقع كله فورًا)", type: "anim_select", group: "الثيم والحركة" },
   { key: "site_name", label: "اسم المنصة", group: "الهوية" },
   { key: "teacher_name", label: "اسم المدرس", group: "الهوية" },
   { key: "tagline", label: "الشعار القصير", group: "الهوية" },
@@ -780,6 +796,17 @@ export function SettingsForm({ values }: { values: SiteSettings }) {
                     <option value="vip">الباقة 3</option>
                     <option value="none">بدون شارة</option>
                   </Select>
+                ) : f.type === "anim_select" ? (
+                  <Select id={f.key} name={f.key} defaultValue={values[f.key]}>
+                    {ANIMATION_PRESETS.map((p) => (
+                      <option key={p} value={p}>{ANIMATION_PRESET_LABELS[p].label} – {ANIMATION_PRESET_LABELS[p].hint}</option>
+                    ))}
+                  </Select>
+                ) : f.type === "color" ? (
+                  <span className="flex items-center gap-2">
+                    <input type="color" id={f.key} name={f.key} defaultValue={/^#[0-9a-fA-F]{6}$/.test(values[f.key]) ? values[f.key] : "#7c5cff"} className="h-11 w-16 shrink-0 cursor-pointer rounded-xl border border-lav-300 bg-white p-1" dir="ltr" />
+                    <Input defaultValue={values[f.key]} dir="ltr" maxLength={7} aria-label={f.label} onChange={(e) => { const c = document.getElementById(f.key) as HTMLInputElement | null; if (c && /^#[0-9a-fA-F]{6}$/.test(e.target.value)) c.value = e.target.value; }} />
+                  </span>
                 ) : (
                   <Input id={f.key} name={f.key} type={f.type === "number" ? "number" : "text"} defaultValue={values[f.key]} dir={f.dir} />
                 )}
@@ -789,6 +816,43 @@ export function SettingsForm({ values }: { values: SiteSettings }) {
         </section>
       ))}
       <SubmitButton pendingText="جارٍ الحفظ..."><Save className="size-4" /> حفظ كل الإعدادات</SubmitButton>
+    </form>
+  );
+}
+
+/* ───────────── Floating support button (teacher_admin + super_admin) ───────────── */
+
+export function SupportForm({ values }: { values: SupportConfig }) {
+  const [state, action] = useActionState(updateSupportSettingsAction, null);
+  return (
+    <form action={action} className="space-y-6">
+      <FormMessage state={state} />
+      <section className="card p-6">
+        <h2 className="mb-1 text-base font-black text-slate-900">زر الدعم والتواصل العائم</h2>
+        <p className="mb-4 text-xs leading-6 text-slate-500">يظهر أسفل صفحات الموقع، ويفتح محادثة برقم السكرتارية مع رسالة الترحيب تلقائيًا.</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <Checkbox name="enabled" label="إظهار الزر العائم في المنصة" hint="إيقافه يخفي زر التواصل من كل الصفحات" defaultChecked={values.enabled} />
+          </div>
+          <Field label="تطبيق التواصل" name="channels">
+            <Select id="channels" name="channels" defaultValue={values.channels}>
+              <option value="both">واتساب وتيليجرام معًا</option>
+              <option value="whatsapp">واتساب فقط</option>
+              <option value="telegram">تيليجرام فقط</option>
+            </Select>
+          </Field>
+          <Field label="رسالة الترحيب التلقائية" name="welcome_message" hint="تُرسل جاهزة مع أول ضغطة على الزر">
+            <Input id="welcome_message" name="welcome_message" maxLength={300} defaultValue={values.welcomeMessage} />
+          </Field>
+          <Field label="رقم واتساب السكرتارية" name="whatsapp" hint="بالصيغة الدولية بدون + (مثال: 2010xxxxxxxx)">
+            <Input id="whatsapp" name="whatsapp" inputMode="numeric" dir="ltr" maxLength={15} placeholder="2010xxxxxxxx" defaultValue={values.whatsapp} />
+          </Field>
+          <Field label="اسم مستخدم التيليجرام" name="telegram" hint="بدون @ (مثال: support_username)">
+            <Input id="telegram" name="telegram" dir="ltr" maxLength={64} placeholder="username" defaultValue={values.telegram} />
+          </Field>
+        </div>
+      </section>
+      <SubmitButton pendingText="جارٍ الحفظ..."><Save className="size-4" /> حفظ إعدادات التواصل</SubmitButton>
     </form>
   );
 }

@@ -7,7 +7,7 @@ type Props = {
   /** opaque signed token – the real URL is resolved server-side */
   mediaToken: string;
   /** identity lines rendered as a dynamic watermark */
-  watermark: { name: string; phone: string; id: string };
+  watermark: { name: string; phone: string; id: string; ip?: string | null };
   title: string;
 };
 
@@ -66,7 +66,7 @@ export function VideoPlayer({ mediaToken, watermark, title }: Props) {
     };
   }, []);
 
-  const label = `${watermark.name} • ${watermark.phone}`;
+  const label = watermark.ip ? `${watermark.name} • ${watermark.phone} • ${watermark.ip}` : `${watermark.name} • ${watermark.phone}`;
   const tiles = Array.from({ length: 9 });
 
   return (

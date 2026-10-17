@@ -4,7 +4,7 @@ import { count, eq } from "drizzle-orm";
 import { ShieldAlert } from "lucide-react";
 import { db } from "@/db";
 import { contactMessages, paymentRequests } from "@/db/schema";
-import { requireStaff } from "@/lib/auth";
+import { isSuperAdmin, requireStaff, roleLabel } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
 import { logoutAction } from "@/actions/auth";
 import { DashboardShell, type ShellNavItem, type ShellNotification } from "@/components/dashboard/shell";
@@ -24,23 +24,26 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const pendingCount = Number(pending?.c ?? 0);
   const unreadCount = Number(unread?.c ?? 0);
 
-  const nav: ShellNavItem[] = [
+  const superOnly = !isSuperAdmin(staff);
+  const allNav: Array<ShellNavItem & { superOnly?: boolean }> = [
     { href: "/admin", label: "نظرة عامة", icon: "dashboard", exact: true, section: "الإدارة" },
     { href: "/admin/students", label: "الطلاب", icon: "students", section: "الإدارة" },
     { href: "/admin/courses", label: "الكورسات والدروس", icon: "courses", section: "المحتوى" },
     { href: "/admin/exams", label: "الامتحانات", icon: "exams", section: "المحتوى" },
-    { href: "/admin/media", label: "إعدادات الفيديو (Bunny)", icon: "ai", section: "المحتوى" },
+    { href: "/admin/support", label: "زر الدعم العائم", icon: "messages", section: "المحتوى" },
+    { href: "/admin/media", label: "إعدادات الفيديو (Bunny)", icon: "ai", section: "المحتوى", superOnly: true },
     { href: "/admin/announcements", label: "الإعلانات (إشعارات للطلاب)", icon: "megaphone", section: "المحتوى" },
     { href: "/admin/testimonials", label: "آراء الطلاب", icon: "testimonials", section: "المحتوى" },
-    { href: "/admin/images", label: "صور الموقع", icon: "image", section: "المظهر" },
+    { href: "/admin/images", label: "صور الموقع والهوية", icon: "image", section: "المظهر", superOnly: true },
     { href: "/admin/payments", label: "طلبات الدفع", icon: "payments", badge: pendingCount, section: "المبيعات" },
     { href: "/admin/codes", label: "أكواد السنتر", icon: "code", section: "المبيعات" },
-    { href: "/admin/ai", label: "التحقق بالذكاء الاصطناعي", icon: "ai", section: "المبيعات" },
+    { href: "/admin/ai", label: "التحقق بالذكاء الاصطناعي", icon: "ai", section: "المبيعات", superOnly: true },
     { href: "/admin/messages", label: "رسائل التواصل", icon: "messages", badge: unreadCount, section: "النظام" },
-    { href: "/admin/audit", label: "سجل الأمان", icon: "audit", section: "النظام" },
-    { href: "/admin/settings", label: "إعدادات المنصة", icon: "settings", section: "النظام" },
-    { href: "/admin/setup", label: "الحماية والتشغيل", icon: "setup", section: "النظام" },
+    { href: "/admin/audit", label: "سجل الأمان", icon: "audit", section: "النظام", superOnly: true },
+    { href: "/admin/settings", label: "إعدادات المنصة والثيم", icon: "settings", section: "النظام", superOnly: true },
+    { href: "/admin/setup", label: "الحماية والتشغيل", icon: "setup", section: "النظام", superOnly: true },
   ];
+  const nav: ShellNavItem[] = allNav.filter((n) => !n.superOnly || !superOnly);
 
   const notifications: ShellNotification[] = latestPending.map((p) => ({
     id: p.id,
@@ -56,7 +59,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     <DashboardShell
       variant="admin"
       brand={{ siteName: s.site_name, teacherName: s.teacher_name }}
-      user={{ name: staff.name, email: staff.email, avatarUrl: staff.avatarUrl, role: staff.role, subtitle: staff.role === "admin" ? "مدير المنصة" : "مساعد" }}
+      user={{ name: staff.name, email: staff.email, avatarUrl: staff.avatarUrl, role: staff.role, subtitle: roleLabel(staff.role) }}
       nav={nav}
       notifications={notifications}
       unread={pendingCount}

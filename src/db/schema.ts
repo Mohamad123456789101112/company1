@@ -23,7 +23,17 @@ export const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
 /* ───────────────────────────── Enums ───────────────────────────── */
 
 export const gradeEnum = pgEnum("grade", ["first_secondary", "second_secondary", "third_secondary"]);
-export const roleEnum = pgEnum("user_role", ["student", "assistant", "admin"]);
+/**
+ * Dual RBAC roles:
+ * - `super_admin`  : platform owner – full control over identity, theme, images,
+ *                    animation engine, security and every setting.
+ * - `teacher_admin`: teacher / secretariat – manages content (lessons, videos,
+ *                    exams, students, recharge codes) + floating support button.
+ *                    CANNOT touch theme, colors, design or main site images.
+ * - `admin` / `assistant` are legacy aliases kept for backward compatibility:
+ *   `admin` behaves as super_admin, `assistant` behaves as teacher_admin.
+ */
+export const roleEnum = pgEnum("user_role", ["student", "assistant", "admin", "super_admin", "teacher_admin"]);
 export const lessonTypeEnum = pgEnum("lesson_type", ["video", "pdf", "quiz"]);
 export const videoProviderEnum = pgEnum("video_provider", ["youtube", "vimeo", "bunny", "drive"]);
 export const codeTypeEnum = pgEnum("code_type", ["wallet", "course"]);
@@ -429,6 +439,33 @@ export const settings = pgTable("settings", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }).enableRLS();
 
+/**
+ * Canonical SaaS template store: EVERY design/theme/image/animation setting
+ * lives in this single table. The legacy `settings` table is kept as a
+ * read-fallback only (old installs) – all writes go here.
+ * 🔒 Only `super_admin` may modify it (enforced in server actions + RLS).
+ */
+export const platformSettings = pgTable("platform_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}).enableRLS();
+
+/**
+ * Floating support/contact button config. Single-row table (id = 'default').
+ * ✏️ Editable by `teacher_admin` AND `super_admin` (enforced in server actions + RLS).
+ */
+export const supportSettings = pgTable("support_settings", {
+  id: text("id").primaryKey().default("default"),
+  enabled: boolean("enabled").notNull().default(true),
+  /** 'whatsapp' | 'telegram' | 'both' */
+  channels: text("channels").notNull().default("both"),
+  whatsapp: text("whatsapp").notNull().default(""),
+  telegram: text("telegram").notNull().default(""),
+  welcomeMessage: text("welcome_message").notNull().default("السلام عليكم، عندي استفسار بخصوص المنصة"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}).enableRLS();
+
 export const testimonials = pgTable(
   "testimonials",
   {
@@ -464,3 +501,5 @@ export type WalletTransaction = typeof walletTransactions.$inferSelect;
 export type Testimonial = typeof testimonials.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type Upload = typeof uploads.$inferSelect;
+export type PlatformSetting = typeof platformSettings.$inferSelect;
+export type SupportSetting = typeof supportSettings.$inferSelect;

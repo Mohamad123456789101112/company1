@@ -39,7 +39,7 @@ export default async function AdminCourseDetail({ params }: { params: Promise<{ 
         actions={
           <>
             <Link href={`/courses/${course.slug}`} className="btn btn-outline"><Eye className="size-4" /> معاينة</Link>
-            {staff.role === "admin" && (
+            {true && (
               <ConfirmForm action={deleteCourseAction} message="حذف الكورس نهائيًا مع كل دروسه واشتراكاته؟">
                 <input type="hidden" name="courseId" value={course.id} />
                 <button className="btn btn-danger"><Trash2 className="size-4" /> حذف الكورس</button>

@@ -118,7 +118,7 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     if (!user.isActive) return { error: "هذا الحساب موقوف مؤقتًا. تواصل مع الدعم الفني." };
 
     const settings = await getSettings();
-    const promote = isBootstrapAdminEmail(email) && user.role !== "admin";
+    const promote = isBootstrapAdminEmail(email) && user.role !== "super_admin" && user.role !== "admin";
 
     await db
       .update(users)
@@ -128,15 +128,15 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
         lastLoginAt: new Date(),
         lastLoginIp: ip,
         updatedAt: new Date(),
-        ...(promote ? { role: "admin" as const } : {}),
+        ...(promote ? { role: "super_admin" as const } : {}),
       })
       .where(eq(users.id, user.id));
 
     await clearRateLimit(`login:id:${email}`);
-    await createSession(user.id, Number(settings.max_devices) || 2);
+    await createSession(user.id, Number(settings.max_devices) || 1);
     await audit("login.success", { userId: user.id });
 
-    const staff = promote || user.role === "admin" || user.role === "assistant";
+    const staff = promote || user.role !== "student";
     destination = safeRedirectPath(parsed.data.next, staff ? "/admin" : "/dashboard");
   } catch (error) {
     logAuthFailure("login", error);
@@ -197,7 +197,7 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
     }
 
     const passwordHash = await hashPassword(password);
-    const role = isBootstrapAdminEmail(email) ? "admin" : "student";
+    const role = isBootstrapAdminEmail(email) ? "super_admin" : "student";
 
     let created: { id: string } | undefined;
     try {
@@ -226,8 +226,8 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
     if (!created) throw new Error("Registration insert returned no user id");
     userCreated = true;
     await audit("user.registered", { userId: created.id, meta: { grade } });
-    await createSession(created.id, Number(settings.max_devices) || 2);
-    if (role === "admin") destination = "/admin";
+    await createSession(created.id, Number(settings.max_devices) || 1);
+    if (role === "super_admin") destination = "/admin";
   } catch (error) {
     logAuthFailure("register", error);
     return {
