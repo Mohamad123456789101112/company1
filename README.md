@@ -58,7 +58,7 @@
 ### 2) Vercel
 1. ارفع المشروع على GitHub ثم استورده في [vercel.com](https://vercel.com).
 2. أضف متغيرات البيئة (انظر [`.env.example`](./.env.example)):
-   - `DATABASE_URL` – رابط Supabase
+   - `DATABASE_URL` – رابط Supabase (أو فعّل تكامل Supabase في Vercel؛ التطبيق يستخدم `POSTGRES_URL` الذي يوفّره التكامل تلقائيًا)
    - `NEXT_PUBLIC_APP_URL` – رابط موقعك `https://...`
    - `ADMIN_EMAILS` – بريدك (يُرقّى لمدير تلقائيًا)
    - `GOOGLE_CLIENT_ID` و `GOOGLE_CLIENT_SECRET` (الخطوة 3)

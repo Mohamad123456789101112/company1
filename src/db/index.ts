@@ -8,7 +8,8 @@ import * as schema from "./schema";
 
 export type Db = NodePgDatabase<typeof schema>;
 
-const databaseUrl = process.env.DATABASE_URL;
+// Vercel's Supabase integration exposes POSTGRES_URL; self-hosted/local setups may use DATABASE_URL.
+const databaseUrl = process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim();
 
 const globalForDb = globalThis as typeof globalThis & {
   __arenaNextJsPostgresqlPool?: Pool;
@@ -31,7 +32,7 @@ const sslSetting =
       : undefined;
 
 function createDb(): { db: Db; ready: Promise<void>; pool?: Pool } {
-  /* ── Production / real database: Supabase or any Postgres via DATABASE_URL ── */
+  /* ── Production / real database: Supabase or any Postgres ── */
   if (databaseUrl) {
     const pool =
       globalForDb.__arenaNextJsPostgresqlPool ??
@@ -51,8 +52,8 @@ function createDb(): { db: Db; ready: Promise<void>; pool?: Pool } {
   }
 
   /* ── Demo / preview mode: embedded Postgres (PGlite) – no external DB needed ──
-     Set DATABASE_URL (Supabase Session pooler) in .env / Vercel to switch to
-     the real production database. This branch never runs when it is set.      */
+     Set DATABASE_URL or POSTGRES_URL in .env / Vercel to switch to the real
+     database. Vercel's Supabase integration provides POSTGRES_URL.            */
   if (!globalForDb.__arenaPglite) {
     const client = new PGlite();
     const db = drizzlePglite(client, { schema }) as unknown as Db;
@@ -74,6 +75,6 @@ function createDb(): { db: Db; ready: Promise<void>; pool?: Pool } {
 const { db: _db, ready: _dbReady, pool: _pool } = createDb();
 
 export const db = _db;
-/** Resolves once the embedded demo database has finished bootstrapping (no-op with DATABASE_URL). */
+/** Resolves once the embedded demo database has finished bootstrapping (no-op with a configured Postgres URL). */
 export const dbReady = _dbReady;
 export const pool = _pool;

@@ -36,7 +36,7 @@ export const secureGoogleAuth = {
 /** Supabase / Postgres connection + SQL bootstrap file location. */
 export const secureDatabase = {
   get url(): string {
-    return process.env.DATABASE_URL ?? "";
+    return process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim() || "";
   },
   /**
    * مسار ملف أكواد الـ SQL Editor الخاص بـ Supabase. يُقرأ من السيرفر فقط
@@ -46,7 +46,7 @@ export const secureDatabase = {
     return process.env.SUPABASE_SQL_FILE ?? "supabase/schema.sql";
   },
   get configured(): boolean {
-    return Boolean(process.env.DATABASE_URL);
+    return Boolean(process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim());
   },
 } as const;
 
