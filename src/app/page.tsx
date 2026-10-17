@@ -108,7 +108,8 @@ export default async function HomePage() {
     return enrolledIds.has(c.id) ? { ...c, enrolled: true, progress: m?.progress ?? 0 } : c;
   });
   const heroLines = s.hero_title.split("..").map((l) => l.trim()).filter(Boolean);
-  const featureImg = (i: number) => [s.img_feature_1, s.img_feature_2, s.img_feature_3][i] || "/images/teacher.jpg";
+  const defaultFeatureImgs = ["/images/feature-1.jpg", "/images/feature-2.jpg", "/images/feature-3.jpg"];
+  const featureImg = (i: number) => [s.img_feature_1, s.img_feature_2, s.img_feature_3][i] || defaultFeatureImgs[i];
   const teacherShort = s.teacher_name.replace(/^م\/\s*/, "");
 
   const num = (v: string, fallback: number) => {
@@ -288,6 +289,12 @@ export default async function HomePage() {
 
         {/* ───────── Features (3 cards) ───────── */}
         <section className="py-16">
+          <div className="section-gutter mb-10 text-center md:text-right">
+            <Reveal from="right">
+              <p className="text-xs font-bold tracking-widest text-peach-500">نظام المذاكرة على المنصة</p>
+              <h2 className="mt-2 font-amin text-2xl font-bold text-slate-900 sm:text-3xl md:text-4xl">إزاي بنخلّي الفيزياء <span className="gradient-text">لعبتنا مش عقدتنا؟</span></h2>
+            </Reveal>
+          </div>
           <div className="section-gutter grid grid-cols-3 gap-2 sm:gap-4 md:gap-6 lg:gap-8">
             {FEATURES.map((f, i) => (
               <Reveal key={f.title} from={i === 0 ? "right" : i === 2 ? "left" : "up"} delay={i * 120} className="flex h-full min-w-0 flex-col space-y-2 md:space-y-4">
@@ -295,12 +302,12 @@ export default async function HomePage() {
                   <div className="grid-bg absolute inset-0 opacity-50" />
                   <Orbits className="absolute -left-6 -top-6 size-28 text-white/15 transition duration-700 group-hover:rotate-90 md:size-40" />
                   <div className="absolute inset-x-0 bottom-0 flex justify-center px-2 sm:px-4">
-                    <div className="relative w-[80%] overflow-hidden rounded-t-[1.25rem] border-2 border-b-0 border-white/70 shadow-2xl transition duration-500 group-hover:-translate-y-1 group-hover:scale-[1.03] sm:rounded-t-[2rem] sm:border-4">
-                      <Image src={featureImg(i)} alt={s.teacher_name} width={900} height={900} sizes="(min-width: 1024px) 30vw, 33vw" unoptimized={featureImg(i).startsWith("/api/")} className="aspect-[4/5] w-full object-cover object-top" />
+                    <div className="relative w-[82%] overflow-hidden rounded-t-[1.25rem] border-2 border-b-0 border-white/70 shadow-2xl transition duration-500 group-hover:-translate-y-1 group-hover:scale-[1.03] sm:rounded-t-[2rem] sm:border-4">
+                      <Image src={featureImg(i)} alt={s.teacher_name} width={900} height={1125} sizes="(min-width: 1024px) 30vw, 33vw" unoptimized={featureImg(i).startsWith("/api/")} className="aspect-[4/5] w-full object-cover object-top" />
                     </div>
                   </div>
                   <span className="absolute left-2 top-2 grid size-7 place-items-center rounded-lg bg-white/15 text-white backdrop-blur sm:left-3 sm:top-3 sm:size-10 sm:rounded-xl"><f.icon className="size-4 sm:size-5" /></span>
-                  <span className="absolute bottom-2 right-2 rounded-md bg-black/30 px-1.5 py-0.5 font-amin text-[9px] font-bold text-white backdrop-blur sm:bottom-3 sm:right-3 sm:px-2 sm:text-[11px]">{s.teacher_name}</span>
+                  <span className="absolute bottom-2 right-2 rounded-md bg-black/40 px-1.5 py-0.5 font-amin text-[9px] font-bold text-white backdrop-blur sm:bottom-3 sm:right-3 sm:px-2.5 sm:py-1 sm:text-xs">{s.teacher_name}</span>
                 </div>
                 <div className="flex flex-1 flex-col space-y-1.5 rounded-xl border border-lav-200 bg-white px-2 py-3 text-slate-900 shadow-[0_10px_30px_-18px_rgba(59,39,134,0.3)] smooth hover:border-brand-300 sm:rounded-2xl sm:space-y-2 md:px-4 md:py-5">
                   <span className="hidden size-10 place-items-center rounded-xl bg-brand-50 text-brand-600 sm:grid"><f.icon className="size-5" /></span>
@@ -309,6 +316,64 @@ export default async function HomePage() {
                 </div>
               </Reveal>
             ))}
+          </div>
+        </section>
+
+        {/* ───────── Featured YouTube Lecture (Kirchhoff's 2nd Law) ───────── */}
+        <section id="lecture" className="relative overflow-hidden bg-gradient-to-b from-lav-50 via-white to-lav-50 py-16 md:py-24">
+          <div className="container-x">
+            <SectionHeading
+              eyebrow="جرب الشرح بنفسك – محاضرة مجانية كاملة"
+              title="شرح قانون كيرشوف الثاني"
+              highlight="مع البشمهندس محمد فوزي"
+              subtitle="شاهد محاضرة شرح قانون كيرشوف الثاني للصف الثالث الثانوي 2027 وتعلّم إزاي تطبق قاعدة الإشارات وفروق الجهد (∑V = 0) على أصعب الدوائر الكهربية من غير لخبطة."
+            />
+            <div className="grid items-center gap-8 lg:grid-cols-12">
+              <Reveal from="right" className="lg:col-span-7">
+                <div className="overflow-hidden rounded-3xl border-4 border-white bg-slate-950 shadow-[0_30px_60px_-25px_rgba(124,92,255,0.45)]">
+                  <div className="relative aspect-video w-full">
+                    <iframe
+                      src="https://www.youtube-nocookie.com/embed/WVZnXjXW0gs?rel=0"
+                      title="شرح قانون كيرشوف الثاني | فيزياء تالتة ثانوي 2027 | البشمهندس محمد فوزي"
+                      className="absolute inset-0 size-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                      allowFullScreen
+                    />
+                  </div>
+                </div>
+              </Reveal>
+              <Reveal from="left" className="space-y-5 lg:col-span-5">
+                <div className="card p-6 sm:p-8">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">
+                    <MonitorPlay className="size-3.5" /> فيزياء تالتة ثانوي 2027 • الفصل الأول
+                  </span>
+                  <h3 className="mt-3 font-amin text-2xl font-bold text-slate-900">هتتعلم إيه في المحاضرة دي؟</h3>
+                  <ul className="mt-4 space-y-3 font-taj text-sm text-slate-700">
+                    {[
+                      "شرح قانون كيرشوف الثاني (قانون بقاء الطاقة) من الأساس بطريقة مبسطة.",
+                      "فهم قاعدة المجموع الجبري لفروق الجهد في المسار المغلق (∑V = 0 و ∑VB = ∑I·R).",
+                      "تحديد اتجاه الدوران وإشارات القوى الدافعة الكهربية وفروق الجهد على المقاومات بثقة.",
+                      "تطبيق القانون عمليًا وحل أهم أنماط المسائل اللي بتتكرر في الامتحان خطوة بخطوة.",
+                    ].map((point) => (
+                      <li key={point} className="flex items-start gap-2.5">
+                        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-brand-500" />
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-6 flex flex-wrap gap-3 pt-2">
+                    <Link href="/courses/physics-3sec-2027-ch1" className="btn btn-primary rounded-xl px-6 py-3 font-amin">
+                      افتح الكورس والامتحان التفاعلي <ArrowLeft className="size-4" />
+                    </Link>
+                    {s.youtube && (
+                      <a href={s.youtube} target="_blank" rel="noopener noreferrer" className="btn btn-outline rounded-xl px-5 py-3 font-amin">
+                        قناة اليوتيوب الرسمية
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </Reveal>
+            </div>
           </div>
         </section>
 
@@ -375,10 +440,10 @@ export default async function HomePage() {
               <Reveal from="right" delay={220}>
                 <ul className="mt-7 grid gap-3 sm:grid-cols-2">
                   {[
-                    "قناة يوتيوب +15 ألف متابع و+170 فيديو شرح",
-                    "شرح يربط القوانين بأمثلة من الحياة",
-                    "تدريب مكثف على نماذج الامتحانات الحديثة",
-                    "متابعة مستمرة للطالب وولي الأمر",
+                    "قناة يوتيوب +15.4 ألف متابع و+173 محاضرة بأكثر من 1.2 مليون مشاهدة",
+                    "شرح يبدأ من الفكرة والأساس العلمي قبل حفظ القانون",
+                    "حل تفصيلي لكتاب الامتحان ونماذج النظام الجديد خطوة بخطوة",
+                    "امتحانات إلكترونية مستمرة ومتابعة للطالب وولي الأمر",
                   ].map((t) => (
                     <li key={t} className="flex items-start gap-2.5 font-taj text-sm text-slate-700">
                       <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-600"><CheckCircle2 className="size-4" /></span>
@@ -390,23 +455,24 @@ export default async function HomePage() {
               <Reveal from="up" delay={340}>
                 <div className="mt-8 flex flex-wrap gap-3">
                   <Link href={user ? "/courses" : "/register"} className="btn btn-primary rounded-xl px-7 py-3">ابدأ مع {teacherShort} <Zap className="size-4 text-peach-200" /></Link>
-                  <Link href="/#testimonials" className="btn btn-outline rounded-xl px-7 py-3">شوف آراء الطلاب</Link>
+                  <Link href="/#lecture" className="btn btn-outline rounded-xl px-7 py-3">شاهد محاضرة مجانية</Link>
+                  {s.facebook && (
+                    <a href={s.facebook} target="_blank" rel="noopener noreferrer" className="btn btn-ghost rounded-xl px-5 py-3">
+                      صفحة الفيسبوك
+                    </a>
+                  )}
                 </div>
               </Reveal>
             </div>
 
             {/* photo column (left in RTL) */}
             <Reveal from="left" className="relative mx-auto w-full max-w-md lg:max-w-lg">
-              <div className="relative aspect-[4/5] overflow-hidden rounded-[2.5rem] bg-gradient-to-b from-lav-100 via-brand-100 to-brand-200 shadow-[0_30px_60px_-30px_rgba(124,92,255,0.45)]">
-                <div className="dots-bg absolute inset-0 opacity-60" />
-                <Orbits className="absolute -right-10 -top-10 size-56 animate-orbit text-brand-300/40" />
-                <div className="absolute inset-x-0 bottom-0 top-[8%] flex items-end justify-center">
-                  <Image src={s.img_about || "/images/teacher-cut.webp"} alt={s.teacher_name} width={1000} height={1116} sizes="(min-width: 1024px) 40vw, 90vw" unoptimized={s.img_about.startsWith("/api/")} className="h-full w-auto max-w-none object-contain object-bottom drop-shadow-[0_25px_30px_rgba(59,39,134,0.35)]" />
-                </div>
+              <div className="relative aspect-[4/5] overflow-hidden rounded-[2.5rem] border-4 border-white bg-gradient-to-b from-lav-100 via-brand-100 to-brand-200 shadow-[0_30px_60px_-30px_rgba(124,92,255,0.45)]">
+                <Image src={s.img_about || "/images/teacher-about.jpg"} alt={s.teacher_name} width={928} height={1152} sizes="(min-width: 1024px) 40vw, 90vw" unoptimized={s.img_about.startsWith("/api/")} className="h-full w-full object-cover object-top" />
               </div>
               <div className="absolute -bottom-5 right-6 rounded-2xl border border-lav-200 bg-white px-5 py-3 font-amin shadow-[0_12px_30px_-14px_rgba(59,39,134,0.3)]">
                 <p className="text-lg font-bold leading-none text-slate-900">{s.teacher_name}</p>
-                <p className="mt-1 text-xs font-bold text-brand-600">مدرس الفيزياء للثانوية العامة • Eng:mohamed fawzi</p>
+                <p className="mt-1 text-xs font-bold text-brand-600">مدرس الفيزياء للثانوية العامة • الفيزياء لعبتنا مش عقدتنا ⚡</p>
               </div>
             </Reveal>
           </div>

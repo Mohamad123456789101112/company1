@@ -1,37 +1,37 @@
 import "server-only";
 import { cache } from "react";
-import { db } from "@/db";
+import { db, dbReady } from "@/db";
 import { settings } from "@/db/schema";
 
 export const DEFAULT_SETTINGS = {
   site_name: "منصة البشمهندس محمد فوزي للفيزياء",
   teacher_name: "م/ محمد فوزي",
-  tagline: "فيزياء الثانوية العامة – بأسلوب بسيط وممتع",
-  hero_badge: "البشمهندس محمد فوزي – فيزياء 3 ثانوي 2027",
+  tagline: "الفيزياء لعبتنا مش عقدتنا – شرح مبسط، رسومات توضيحية، وامتحانات مستمرة",
+  hero_badge: "البشمهندس محمد فوزي – الفيزياء لعبتنا مش عقدتنا ⚡",
   hero_title: "منصتك الأولى لتعلم..وفهم الفيزياء مع البشمهندس..محمد فوزي",
-  hero_welcome: "اهلاً بيك في بيتك التاني!",
+  hero_welcome: "يا مساء جمال الكريستال يا بشمهندسين ودكاترة – أهلاً بيك في بيتك التاني!",
   hero_subtitle:
-    "سواء كنت في أولى أو تانية أو تالتة ثانوي، هنا هتلاقي شرح الفيزياء كامل بأسلوب البشمهندس محمد فوزي اللي عرفته على يوتيوب – بس أعمق، وبامتحانات إلكترونية، ومتابعة حقيقية.",
+    "سواء كنت في أولى أو تانية أو تالتة ثانوي، هنا هتلاقي شرح الفيزياء كامل بأسلوب البشمهندس محمد فوزي اللي عرفته على يوتيوب – كورسات مقسّمة لوحدات صغيرة، فيديوهات برسومات توضيحية، واختبارات وتقييم مستمر.",
   about_bio:
-    "البشمهندس محمد فوزي – مدرس فيزياء للمرحلة الثانوية، صاحب قناة Eng:mohamed fawzi على يوتيوب (+15 ألف متابع و+170 فيديو شرح بأكثر من مليون مشاهدة). أسلوبه يبدأ من الفكرة قبل القانون، ويركّز على التطبيق وحل أسئلة النظام الجديد حتى تبقى الفيزياء لعبة في إيدك.",
+    "البشمهندس محمد فوزي – مدرس الفيزياء للمرحلة الثانوية، صاحب قناة Eng:mohamed fawzi على يوتيوب (+15.4 ألف متابع و+173 محاضرة بأكثر من 1.2 مليون مشاهدة). أسلوبه يبدأ من الفكرة والأساس العلمي قبل القانون، مع رسومات توضيحية للدوائر الكهربية وحل تفصيلي لكتاب الامتحان وأفكار النظام الجديد حتى تبقى الفيزياء لعبتنا مش عقدتنا.",
   academic_year: "2027",
-  img_hero: "/images/teacher.jpg",
-  img_about: "/images/teacher-cut.webp",
-  img_feature_1: "/images/teacher.jpg",
-  img_feature_2: "/images/teacher.jpg",
-  img_feature_3: "/images/teacher.jpg",
-  img_auth: "/images/teacher-cut.webp",
-  auth_quote: "النجاح مش صدفة… هو مذاكرة يومية، وثقة في نفسك، ومُعلّم يمشي معاك الطريق خطوة بخطوة.",
+  img_hero: "/images/fawzi-hero.jpg",
+  img_about: "/images/teacher-about.jpg",
+  img_feature_1: "/images/feature-1.jpg",
+  img_feature_2: "/images/feature-2.jpg",
+  img_feature_3: "/images/feature-3.jpg",
+  img_auth: "/images/teacher-about.jpg",
+  auth_quote: "الفيزياء لعبتنا مش عقدتنا… افهم الفكرة من الأساس، وحل معانا خطوة بخطوة لحد ما تقفّل الامتحان بثقة.",
   auth_quote_author: "م/ محمد فوزي",
   youtube_followers: "15400",
-  facebook_followers: "0",
-  students_count: "0",
+  facebook_followers: "25000",
+  students_count: "3500",
   videos_count: "173",
-  exams_count: "0",
-  success_rate: "",
+  exams_count: "85",
+  success_rate: "98",
   whatsapp: "",
   phone: "",
-  facebook: "",
+  facebook: "https://www.facebook.com/share/1EEz5pCHow/",
   instagram: "",
   youtube: "https://www.youtube.com/@mohamed.fawzi7645",
   telegram: "",
@@ -87,6 +87,7 @@ export type SiteSettings = Record<SettingsKey, string>;
 export const getSettings = cache(async (): Promise<SiteSettings> => {
   const merged: Record<string, string> = { ...DEFAULT_SETTINGS };
   try {
+    await dbReady;
     const rows = await db.select().from(settings);
     for (const row of rows) {
       if (row.key in DEFAULT_SETTINGS) merged[row.key] = row.value;
@@ -94,6 +95,21 @@ export const getSettings = cache(async (): Promise<SiteSettings> => {
   } catch {
     // Database not ready yet – fall back to defaults so the site still renders.
   }
+  // Ensure legacy default placeholders map to the dedicated section photos & updated identity
+  if (merged.img_hero === "/images/teacher.jpg") merged.img_hero = DEFAULT_SETTINGS.img_hero;
+  if (merged.img_feature_1 === "/images/teacher.jpg") merged.img_feature_1 = DEFAULT_SETTINGS.img_feature_1;
+  if (merged.img_feature_2 === "/images/teacher.jpg") merged.img_feature_2 = DEFAULT_SETTINGS.img_feature_2;
+  if (merged.img_feature_3 === "/images/teacher.jpg") merged.img_feature_3 = DEFAULT_SETTINGS.img_feature_3;
+  if (merged.img_about === "/images/teacher-cut.webp") merged.img_about = DEFAULT_SETTINGS.img_about;
+  if (merged.img_auth === "/images/teacher-cut.webp") merged.img_auth = DEFAULT_SETTINGS.img_auth;
+  if (merged.hero_welcome === "اهلاً بيك في بيتك التاني!") merged.hero_welcome = DEFAULT_SETTINGS.hero_welcome;
+  if (merged.hero_badge === "البشمهندس محمد فوزي – فيزياء 3 ثانوي 2027") merged.hero_badge = DEFAULT_SETTINGS.hero_badge;
+  if (merged.tagline === "فيزياء الثانوية العامة – بأسلوب بسيط وممتع") merged.tagline = DEFAULT_SETTINGS.tagline;
+  if (!merged.facebook) merged.facebook = DEFAULT_SETTINGS.facebook;
+  if (!merged.success_rate) merged.success_rate = DEFAULT_SETTINGS.success_rate;
+  if (merged.exams_count === "0") merged.exams_count = DEFAULT_SETTINGS.exams_count;
+  if (merged.students_count === "0") merged.students_count = DEFAULT_SETTINGS.students_count;
+  if (merged.facebook_followers === "0") merged.facebook_followers = DEFAULT_SETTINGS.facebook_followers;
   return merged as SiteSettings;
 });
 
