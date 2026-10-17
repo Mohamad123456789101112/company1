@@ -618,6 +618,74 @@ async function importQuizJson({ quizId, courseId, raw, defaultPoints, staffId }:
 }
 
 /**
+ * AI Quiz Generator – one-step mode:
+ * pick a course, paste the JSON from ChatGPT / Gemini and the WHOLE exam is
+ * created (title, questions, auto-grading) without any manual setup.
+ */
+export async function createQuizFromJsonAction(_prev: AdminState, fd: FormData): Promise<AdminState> {
+  const staff = await requireStaff();
+  const courseId = uuidSchema.safeParse(fd.get("courseId"));
+  if (!courseId.success) return { error: "اختر الكورس أولًا" };
+
+  let raw = String(fd.get("json") ?? "").trim();
+  const file = fd.get("jsonFile");
+  if (file instanceof File && file.size > 0) {
+    if (file.size > 2_500_000) return { error: "الملف كبير جدًا (الحد 2.5 ميجابايت)" };
+    raw = (await file.text()).trim();
+  }
+  if (!raw) return { error: "الصق كود JSON أو ارفع ملف .json أولًا" };
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    return { error: "الملف ليس JSON صالحًا – استخدم القالب الجاهز كما هو" };
+  }
+
+  const [course] = await db.select({ id: courses.id, title: courses.title }).from(courses).where(eq(courses.id, courseId.data)).limit(1);
+  if (!course) return { error: "الكورس غير موجود" };
+
+  const meta = (Array.isArray(payload) ? {} : (payload ?? {})) as Record<string, unknown>;
+  const rawTitle = String(fd.get("title") || meta.title || "").trim();
+  const title = (rawTitle || `امتحان ${course.title} – مولّد بالذكاء الاصطناعي`).slice(0, 150);
+  const duration = Math.max(1, Math.min(300, Math.round(Number(meta.durationMinutes ?? meta.duration ?? 20) || 20)));
+  const pass = Math.max(0, Math.min(100, Math.round(Number(meta.passPercent ?? meta.pass ?? 50) || 50)));
+  const attempts = Math.max(1, Math.min(50, Math.round(Number(meta.maxAttempts ?? meta.attempts ?? 3) || 3)));
+
+  const [created] = await db
+    .insert(quizzes)
+    .values({
+      courseId: course.id,
+      scope: "course",
+      title,
+      durationMinutes: duration,
+      passPercent: pass,
+      maxAttempts: attempts,
+      shuffleQuestions: true,
+      showAnswers: true,
+      isPublished: true,
+    })
+    .returning({ id: quizzes.id });
+
+  const result = await importQuizJson({ quizId: created.id, courseId: course.id, raw, defaultPoints: 1, staffId: staff.id });
+  if (result?.error) {
+    // Nothing useful was parsed → remove the empty exam so the list stays clean.
+    await db.delete(quizzes).where(eq(quizzes.id, created.id));
+    return result;
+  }
+
+  // One bell notification per enrolled student (chunked insert).
+  const enrolled = await db.select({ userId: enrollments.userId }).from(enrollments).where(eq(enrollments.courseId, course.id));
+  const chunk = 500;
+  for (let i = 0; i < enrolled.length; i += chunk) {
+    await db.insert(notifications).values(enrolled.slice(i, i + chunk).map((e) => ({ userId: e.userId, type: "exam" as const, title: `امتحان جديد: ${title}`, body: "تم إنشاء امتحان جديد بالذكاء الاصطناعي – جرّب نفسك!", href: `/quiz/${created.id}` })));
+  }
+  await audit("admin.quiz_ai_created", { userId: staff.id, targetType: "quiz", targetId: created.id, meta: { courseId: course.id } });
+  revalidateAdmin(`/admin/courses/${course.id}`, `/admin/courses/${course.id}/quiz/${created.id}`, "/admin/exams");
+  redirect(`/admin/courses/${course.id}/quiz/${created.id}`);
+}
+
+/**
  * Bulk import. Two formats are auto-detected:
  *
  * A) JSON template (paste from ChatGPT / Gemini – "AI Quiz Generator"):

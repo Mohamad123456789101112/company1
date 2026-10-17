@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import { ClipboardCheck, FileText, GripVertical, Pencil, PlayCircle, Plus, Trash2, X } from "lucide-react";
 import { deleteLessonAction, deleteUnitAction, reorderLessonsAction, reorderUnitsAction } from "@/actions/admin";
 import { LessonForm, UnitForm } from "@/components/admin/forms";
@@ -32,6 +32,13 @@ export function CourseBuilder({ courseId, units: initialUnits, bunnyEnabled = fa
   const [overKey, setOverKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const dragRef = useRef<DragPayload | null>(null);
+
+  // Server actions revalidate the page, so new/edited/deleted lessons arrive as
+  // fresh props. Keep the local (drag-optimistic) copy in sync with them.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setUnits(initialUnits);
+  }, [initialUnits]);
 
   const unitOptions = units.map((u) => ({ id: u.id, title: u.title }));
 

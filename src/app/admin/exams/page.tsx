@@ -4,18 +4,21 @@ import { CalendarClock, ShieldCheck } from "lucide-react";
 import { db } from "@/db";
 import { courses, quizAttempts, quizzes } from "@/db/schema";
 import { requireStaff } from "@/lib/auth";
+import { AiQuizFromJsonForm } from "@/components/admin/forms";
+import { Collapsible } from "@/components/ui-client";
 import { Badge, PageHeader, StatCard } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
 
 export default async function AdminExams() {
   await requireStaff();
   const now = Date.now();
-  const [list, stats] = await Promise.all([
+  const [list, stats, courseOptions] = await Promise.all([
     db.select({ q: quizzes, courseTitle: courses.title, courseId: courses.id }).from(quizzes).innerJoin(courses, eq(courses.id, quizzes.courseId)).orderBy(desc(quizzes.availableFrom), asc(quizzes.createdAt)).limit(300),
     db
       .select({ quizId: quizAttempts.quizId, total: count(), submitted: sql<number>`count(*) filter (where ${quizAttempts.status} = 'submitted')`, cancelled: sql<number>`count(*) filter (where ${quizAttempts.status} = 'cancelled')`, avg: sql<number>`coalesce(avg(${quizAttempts.percent}) filter (where ${quizAttempts.status} = 'submitted'), 0)` })
       .from(quizAttempts)
       .groupBy(quizAttempts.quizId),
+    db.select({ id: courses.id, title: courses.title }).from(courses).orderBy(asc(courses.orderIndex)),
   ]);
   const byQuiz = new Map(stats.map((s) => [s.quizId, s]));
   const status = (q: (typeof list)[number]["q"]) => {
@@ -30,6 +33,13 @@ export default async function AdminExams() {
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="المحتوى" title="الامتحانات" subtitle="كل امتحانات المنصة (امتحانات الدروس والامتحانات المستقلة) مع المواعيد والنتائج ومخالفات الغش" actions={<Link href="/admin/courses" className="btn btn-primary"><CalendarClock className="size-4" /> إنشاء امتحان من صفحة الكورس</Link>} />
+      <Collapsible defaultOpen={list.length === 0} title={<span className="flex items-center gap-2">🪄 إنشاء امتحان كامل من JSON (ChatGPT / Gemini) — بدون أي إعدادات</span>}>
+        {courseOptions.length === 0 ? (
+          <p className="text-sm text-slate-500">أنشئ كورسًا أولًا من صفحة الكورسات.</p>
+        ) : (
+          <AiQuizFromJsonForm courses={courseOptions} />
+        )}
+      </Collapsible>
       <div className="grid gap-4 sm:grid-cols-4">
         <StatCard label="إجمالي الامتحانات" value={list.length} />
         <StatCard label="مجدولة/مفتوحة" value={list.filter((r) => ["مجدول", "مفتوح"].includes(status(r.q).l)).length} tone="success" />

@@ -8,6 +8,7 @@ import {
   createCourseAction,
   createLessonAction,
   createQuestionAction,
+  createQuizFromJsonAction,
   createStandaloneQuizAction,
   createTestimonialAction,
   createUnitAction,
@@ -337,6 +338,51 @@ export const QUIZ_JSON_TEMPLATE = `{
     }
   ]
 }`;
+
+/**
+ * AI Quiz Generator – one-step creation from the exams page:
+ * choose the course, paste the JSON (or upload a .json file) and the exam is
+ * built with its questions and automatic grading right away.
+ */
+export function AiQuizFromJsonForm({ courses }: { courses: { id: string; title: string }[] }) {
+  const [state, action] = useActionState(createQuizFromJsonAction, null);
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-brand-200 bg-brand-50/60 p-4 text-xs leading-6 text-slate-700 dark:border-brand-300/40 dark:bg-brand-50/20 dark:text-slate-300">
+        <p className="text-sm font-black text-slate-900 dark:text-white">🤖 امتحان كامل في ثوانٍ بالذكاء الاصطناعي</p>
+        <ol className="mt-2 list-inside list-decimal space-y-1">
+          <li>انسخ القالب الجاهز وضعه في ChatGPT أو Gemini مع اسم الموضوع.</li>
+          <li>ارجع هنا والصق الـ JSON (أو ارفع ملف .json).</li>
+          <li>اختر الكورس واضغط «إنشاء الامتحان» — يتكوّن بالتصحيح التلقائي فورًا.</li>
+        </ol>
+        <div className="mt-3"><CopyButton text={QUIZ_JSON_TEMPLATE} label="نسخ قالب JSON الجاهز" /></div>
+      </div>
+      <form action={action} className="space-y-3">
+        <FormMessage state={state} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="الكورس" name="aiq_course">
+            <Select id="aiq_course" name="courseId" required defaultValue={courses[0]?.id}>
+              {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+            </Select>
+          </Field>
+          <Field label="عنوان الامتحان (اختياري – يُستخدم عنوان JSON إن وجد)" name="aiq_title">
+            <Input id="aiq_title" name="title" maxLength={150} placeholder="امتحان الفصل الأول" />
+          </Field>
+        </div>
+        <Field label="الصق JSON هنا" name="aiq_json" hint="لو الملف كبير: ارفع ملف .json من الأسفل بدلًا من اللصق">
+          <Textarea id="aiq_json" name="json" dir="ltr" className="min-h-52 font-mono text-[11px] leading-5" placeholder={QUIZ_JSON_TEMPLATE} />
+        </Field>
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-3">
+          <label className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-600">
+            أو ارفع ملف ‎.json‎:
+            <input type="file" name="jsonFile" accept=".json,application/json" className="text-xs file:me-2 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-brand-700" />
+          </label>
+        </div>
+        <SubmitButton className="btn btn-accent" pendingText="جارٍ إنشاء الامتحان..."><Sparkles className="size-4" /> إنشاء الامتحان الآن</SubmitButton>
+      </form>
+    </div>
+  );
+}
 
 export function BulkQuestionsForm({ quizId }: { quizId: string }) {
   const [state, action] = useActionState(importQuestionsAction, null);

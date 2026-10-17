@@ -17,3 +17,6 @@ npm-debug.log*
 .DS_Store
 *.tsbuildinfo
 .vercel
+
+# local-only helper scripts
+scripts/*.local.mjs

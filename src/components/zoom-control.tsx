@@ -6,8 +6,8 @@ import { cn } from "@/lib/utils";
 
 const KEY = "aj-zoom";
 const STEPS = [70, 80, 90, 100, 110, 120, 130, 150];
-/** Default page zoom on tablets & laptops – gives the layout more breathing room. */
-const DEFAULT = 80;
+/** Default = 100%. The 80%/90% widths already handle scaling on tablets. */
+const DEFAULT = 100;
 
 /** Applies the zoom to <html> (CSS zoom; falls back to font-size scaling where unsupported). */
 function applyZoom(pct: number) {
@@ -98,7 +98,7 @@ export function ZoomControl() {
             <button type="button" onClick={() => stepBy(1)} disabled={pct >= STEPS[STEPS.length - 1]} className="grid size-9 place-items-center rounded-xl text-slate-700 transition hover:bg-brand-50 hover:text-brand-700 disabled:opacity-30" aria-label="تكبير">
               <Plus className="size-4" strokeWidth={2.5} />
             </button>
-            <button type="button" onClick={() => set(DEFAULT)} className={cn("rounded-lg px-1 py-1 font-mono text-[11px] font-black tabular-nums transition hover:bg-brand-50", pct === DEFAULT ? "text-slate-500" : "text-brand-700")} title="الحجم الافتراضي 80% (Ctrl 0)" dir="ltr">
+            <button type="button" onClick={() => set(DEFAULT)} className={cn("rounded-lg px-1 py-1 font-mono text-[11px] font-black tabular-nums transition hover:bg-brand-50", pct === DEFAULT ? "text-slate-500" : "text-brand-700")} title="الحجم الافتراضي 100% (Ctrl 0)" dir="ltr">
               {pct}%
             </button>
             <button type="button" onClick={() => stepBy(-1)} disabled={pct <= STEPS[0]} className="grid size-9 place-items-center rounded-xl text-slate-700 transition hover:bg-brand-50 hover:text-brand-700 disabled:opacity-30" aria-label="تصغير">
