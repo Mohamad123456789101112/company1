@@ -38,21 +38,16 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-const FONT_LINK =
-  "https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&family=Baloo+Bhaijaan+2:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;800&display=swap";
-
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <head>
-        {/* Arabic display + body fonts (self-declared in globals.css via CSS variables). */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link rel="stylesheet" href={FONT_LINK} />
+        {/* Arabic fonts are self-hosted in /public/fonts and declared in globals.css
+            (@font-face) — no external request, works offline, CSP-tight. */}
         {/* Applies the saved theme before first paint to avoid a light→dark flash – instant (<10ms) via localStorage + <html class="dark">. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var r=document.documentElement;var t=localStorage.getItem("aj-theme");if(t==="dark"){r.classList.add("dark");r.style.colorScheme="dark";}var z=Number(localStorage.getItem("aj-zoom"))||80;if(z!==100&&window.matchMedia("(min-width: 768px)").matches){if(window.CSS&&CSS.supports&&CSS.supports("zoom","1")){r.style.setProperty("zoom",String(z/100));}else{r.style.fontSize=z+"%";}}}catch(e){}})();`,
+            __html: `(function(){try{var r=document.documentElement;var t=localStorage.getItem("aj-theme");if(t==="dark"){r.classList.add("dark");r.style.colorScheme="dark";}var z=Number(localStorage.getItem("aj-zoom"));if(!(z>=70&&z<=150))z=100;if(z!==100&&window.matchMedia("(min-width: 768px)").matches){if(window.CSS&&CSS.supports&&CSS.supports("zoom","1")){r.style.setProperty("zoom",String(z/100));}else{r.style.fontSize=z+"%";}}}catch(e){}})();`,
           }}
         />
       </head>

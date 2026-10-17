@@ -2,6 +2,10 @@
 
 منصة تعليمية متكاملة (LMS) للبشمهندس محمد فوزي – مدرس الفيزياء للمرحلة الثانوية (قناة Eng:mohamed fawzi على يوتيوب)، مبنية بـ **Next.js 16 + PostgreSQL (Supabase) + Drizzle ORM**، جاهزة للرفع على **Vercel** خلال دقائق.
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Mohamad123456789101112/company1)
+
+> 📘 مراجع سريعة: [`docs/SETUP.md`](./docs/SETUP.md) للتشغيل والنشر — [`docs/UPDATE_PLAN.md`](./docs/UPDATE_PLAN.md) لخطة التحديث المنفذة بالكامل.
+
 ## ✨ ما بداخل المنصة
 
 | للطالب | للمدرس / الإدارة |
@@ -27,6 +31,9 @@
 - **لوحة الطالب التفاعلية:** نسبة التقدم، متوسط وتطور درجات الامتحانات، النشاط الأسبوعي، وأوسمة التميز.
 - **عزل الإعدادات الحساسة:** Google Auth وأكواد SQL الخاصة بـ Supabase في Config محمي (`src/lib/secure-config.ts` + `.env`) – **ممنوع ظهورها أو فتحها داخل لوحة التحكم نهائيًا**.
 - **وضع العرض التجريبي:** بدون `DATABASE_URL` يعمل الموقع كاملًا على قاعدة بيانات مدمجة (PGlite) – اضبط `DATABASE_URL` للانتقال لـ Supabase مباشرة.
+- **خطوط عربية مستضافة محليًا** (Almarai / Tajawal / Baloo Bhaijaan 2) داخل `public/fonts` — بدون أي طلب لـ Google Fonts، أسرع وأكثر خصوصية.
+- **تكبير افتراضي 100%:** حتى تظهر نسب 80% (تابلت) و90% (الدخول واللوحات) كما هي بالضبط، مع بقاء زر التكبير اليدوي متاحًا.
+- **تنفيذ SQL من سطر الأوامر فقط:** `npm run db:setup` / `npm run db:check` — ولا يظهر الملف أو نتائجه داخل لوحة التحكم.
 
 ## 🎬 الفيديوهات بصفر تكلفة (YouTube Unlisted + Supabase)
 
@@ -77,12 +84,15 @@
 
 ```bash
 npm install
-cp .env.example .env   # وعدّل DATABASE_URL
-npx drizzle-kit push    # أو نفّذ supabase/schema.sql
+cp .env.example .env.local     # ضع DATABASE_URL (Supabase) — أو اتركه فارغًا للتجربة
+npm run db:setup               # ينفّذ supabase/schema.sql على قاعدة البيانات
 npm run dev
 ```
 
-المنصة تبدأ **فارغة تمامًا** (بدون أي بيانات وهمية): سجّل دخول المدير → اضبط الإعدادات (أرقام التواصل، فودافون كاش، الباقات) → أضف الكورسات والدروس والامتحانات من لوحة الإدارة.
+- **مع `DATABASE_URL`:** قاعدة بيانات حقيقية (Supabase) — هذا هو وضع الإنتاج.
+- **بدون `DATABASE_URL`:** وضع تجربة تلقائي على PGlite بنفس السكيما + كورسات القناة الرسمية للعرض (البيانات مؤقتة وتُفقد مع إعادة التشغيل).
+
+سجّل دخول المدير (`admin@mohamedfawzi.com` / `Admin@12345`) → غيّر كلمة المرور → اضبط الإعدادات والأسعار → أضف المحتوى.
 
 ## 🗂️ البنية
 
@@ -90,11 +100,14 @@ npm run dev
 src/
   actions/      Server Actions (auth, student, admin)
   app/          الصفحات (الرئيسية، الكورسات، لوحة الطالب، المشغّل، الامتحانات، الإدارة)
-  components/   مكونات الواجهة
-  db/           مخطط Drizzle
-  lib/          المصادقة، الحد من الطلبات، الأمان، التحقق، الإعدادات
-  proxy.ts      حماية المسارات الخاصة
-supabase/schema.sql   ← الملف الذي تلصقه في Supabase
+  components/   مكونات الواجهة (منها course-builder للسحب والإسقاط وyoutube-field للجلب التلقائي)
+  db/           مخطط Drizzle + وضع PGlite للتجربة
+  lib/          المصادقة، الحد من الطلبات، الأمان، التحقق، الإعدادات، secure-config
+  proxy.ts      حماية المسارات الخاصة وحجب ملفات الإعدادات/SQL
+scripts/db-setup.mjs   ← تنفيذ السكيما من سطر الأوامر
+docs/                  ← SETUP.md + UPDATE_PLAN.md
+supabase/schema.sql    ← نفس الملف المستخدم مع Supabase
+public/fonts           ← الخطوط العربية المستضافة محليًا
 ```
 
 ---
